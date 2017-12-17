@@ -8,6 +8,11 @@ export
 
     MosaicView
 
+"""
+    MosaicView(A)
+
+create a two dimensional "view" of the array `A`.
+"""
 struct MosaicView{T,N,A<:AbstractArray{T,N}} <: AbstractArray{T,2}
     parent::A
     pdims::NTuple{N,Int}
