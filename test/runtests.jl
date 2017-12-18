@@ -56,3 +56,6 @@ using Base.Test
         @test all(mv .== vcat(hcat(A[:,:,1,1],A[:,:,1,2],A[:,:,1,3]), hcat(A[:,:,2,1],A[:,:,2,2],A[:,:,2,3])))
     end
 end
+
+@testset "MosaicView" begin
+end

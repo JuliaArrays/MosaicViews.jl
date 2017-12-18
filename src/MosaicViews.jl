@@ -9,9 +9,53 @@ export
     mosaicview
 
 """
-    MosaicView(A)
+    MosaicView(A::AbstractArray)
 
-create a two dimensional "view" of the array `A`.
+Create a two dimensional "view" of the three or four dimensional
+array `A`. The resulting `MosaicView` will display the data in
+`A` such that it emulates using `vcat` for all elements in the
+third dimension of `A`, and `hcat` for all elements in the fourth
+dimension of `A`.
+
+For example, if `size(A)` is `(2,3,4)`, then the resulting
+`MosaicView` will have the size `(2*4,3)` which is `(8,3)`.
+Alternatively, if `size(A)` is `(2,3,4,5)`, then the resulting
+size will be `(2*4,3*5)` which is `(8,15)`.
+
+Another way to think about this is that `MosaicView` creates a
+mosaic of all the individual matrices enumerated in the third
+(and optionally fourth) dimension of the given 3D or 4D array
+`A`. This can be especially useful for creating a single
+composite image from a set of equally sized images.
+
+```@jldoctest
+julia> using MosaicViews
+
+julia> A = [(k+1)*l-1 for i in 1:2, j in 1:3, k in 1:2, l in 1:2]
+2×3×2×2 Array{Int64,4}:
+[:, :, 1, 1] =
+ 1  1  1
+ 1  1  1
+
+[:, :, 2, 1] =
+ 2  2  2
+ 2  2  2
+
+[:, :, 1, 2] =
+ 3  3  3
+ 3  3  3
+
+[:, :, 2, 2] =
+ 5  5  5
+ 5  5  5
+
+julia> MosaicView(A)
+4×6 MosaicViews.MosaicView{Int64,4,Array{Int64,4}}:
+ 1  1  1  3  3  3
+ 1  1  1  3  3  3
+ 2  2  2  5  5  5
+ 2  2  2  5  5  5
+```
 """
 struct MosaicView{T,N,A<:AbstractArray{T,N}} <: AbstractArray{T,2}
     parent::A
@@ -27,7 +71,7 @@ end
 
 Base.size(mv::MosaicView) = mv.dims
 
-Base.@propagate_inbounds function Base.getindex(mv::MosaicView{T,3,A}, i::Int, j::Int) where {T,A}
+@inline function Base.getindex(mv::MosaicView{T,3,A}, i::Int, j::Int) where {T,A}
     @boundscheck checkbounds(mv, i, j)
     pdims = mv.pdims
     parent = mv.parent
@@ -38,7 +82,7 @@ Base.@propagate_inbounds function Base.getindex(mv::MosaicView{T,3,A}, i::Int, j
     res
 end
 
-Base.@propagate_inbounds function Base.getindex(mv::MosaicView{T,4,A}, i::Int, j::Int) where {T,A}
+@inline function Base.getindex(mv::MosaicView{T,4,A}, i::Int, j::Int) where {T,A}
     @boundscheck checkbounds(mv, i, j)
     pdims = mv.pdims
     parent = mv.parent
@@ -51,7 +95,7 @@ Base.@propagate_inbounds function Base.getindex(mv::MosaicView{T,4,A}, i::Int, j
 end
 
 """
-    mosaicview(A, [fill]; [npad], [nrow], [ncol], [rowfirst=false]) -> MosaicView
+    mosaicview(A::AbstractArray, [fill]; [npad], [nrow], [ncol], [rowmajor=false]) -> MosaicView
 
 """
 function mosaicview(A::AbstractArray{T,3},
@@ -59,7 +103,7 @@ function mosaicview(A::AbstractArray{T,3},
                     npad = 0,
                     nrow = -1,
                     ncol = -1,
-                    rowfirst = false) where T
+                    rowmajor = false) where T
     ntile = size(A,3)
     ntile_ceil = ntile # ntile need not be integer divideable
     if nrow == -1 && ncol == -1
@@ -80,7 +124,7 @@ function mosaicview(A::AbstractArray{T,3},
         ntile_ceil = nrow * ncol
         ntile_ceil < ntile && throw(ArgumentError("The product of \"ncol\" ($ncol) and \"nrow\" ($nrow) must be equal to or greater than $ntile"))
     end
-    A_new = if !rowfirst
+    A_new = if !rowmajor
         # we pad size(A,3) to nrow*ncol. we also pas the first two
         # dimensions according to npad. think of this as border
         # between tiles (useful for images)
@@ -101,23 +145,27 @@ function mosaicview(A::AbstractArray{T,3},
         )
         permuteddimsview(A_tp, (1,2,4,3))
     end
-    MosaicView(A_new)
+    # decrease size of the resulting MosaicView by npad to not have
+    # a border on the right side and bottom side.
+    dims = (size(A_new,1) * size(A_new,3) - npad, size(A_new,2) * size(A_new,4) - npad)
+    MosaicView{T,4,typeof(A_new)}(A_new, size(A_new), dims)
 end
 
-function mosaicview(A::AbstractArray{T,4},
+function mosaicview(A::AbstractArray{T,N},
                     args...;
                     npad = 0,
                     nrow = -1,
                     ncol = -1,
-                    rowfirst = false) where T
+                    rowmajor = false) where {T,N}
+    3 <= N || throw(ArgumentError("The given array must have dimensionality of N=3 or higher"))
     # if no nrow or ncol is provided then automatically choose
     # nrow and ncol to reflect what MosaicView does (i.e. use size)
     if nrow == -1 && ncol == -1
         nrow = size(A, 3)
-        ncol = size(A, 4)
+        # ncol = size(A, 4)
     end
     mosaicview(reshape(A, (size(A,1), size(A,2), :)), args...;
-               npad=npad, nrow=nrow, ncol=ncol, rowfirst=rowfirst)
+               npad=npad, nrow=nrow, ncol=ncol, rowmajor=rowmajor)
 end
 
 end # module
