@@ -7,7 +7,9 @@ that creates a matrix-shaped "view" of any three or four
 dimensional array `A`. The resulting `MosaicView` will display
 the data in `A` such that it emulates using `vcat` for all
 elements in the third dimension of `A`, and `hcat` for all
-elements in the fourth dimension of `A`.
+elements in the fourth dimension of `A`. This behaviour
+can be further fine tuned by using the lower-case convenience
+function `mosaicview`.
 
 In some use cases (especially in machine learning) it is not
 uncommon to store multiple equally-sized 2D images in a single
