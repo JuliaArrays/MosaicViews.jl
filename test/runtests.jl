@@ -1,5 +1,6 @@
 using MosaicViews
 using Base.Test
+using Colors, ColorVectorSpace
 
 @testset "MosaicView" begin
     @test_throws ArgumentError MosaicView(rand(2))
@@ -168,5 +169,18 @@ end
              5   5   5  -1  -1  -1  -1  -1  -1  -1  -1
              5   5   5  -1  -1  -1  -1  -1  -1  -1  -1
         ]
+    end
+
+    @testset "Colorant Array" begin
+        A = rand(RGB{Float32}, 2, 3, 2, 2)
+        mv = mosaicview(A)
+        @test eltype(mv) == eltype(A)
+        @test mv == @inferred(MosaicView(A))
+        mv = mosaicview(A, rowmajor=true, ncol=3)
+        @test eltype(mv) == eltype(A)
+        @test @inferred(getindex(mv, 3, 4)) == RGB(0,0,0)
+        mv = mosaicview(A, colorant"white", rowmajor=true, ncol=3)
+        @test eltype(mv) == eltype(A)
+        @test @inferred(getindex(mv, 3, 4)) == RGB(1,1,1)
     end
 end
