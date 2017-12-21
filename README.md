@@ -83,7 +83,7 @@ julia> MosaicView(A)
  4  4  4
 ```
 
-Alternatively `A` is also allowed to have four dimensions. More
+Alternatively, `A` is also allowed to have four dimensions. More
 concretely, if `size(A)` is `(2,3,4,5)`, then the resulting size
 will be `(2*4,3*5)` which is `(8,15)`. For the sake of brevity
 here is a slightly smaller example:
