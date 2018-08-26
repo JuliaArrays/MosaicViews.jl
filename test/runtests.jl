@@ -1,5 +1,5 @@
 using MosaicViews
-using Base.Test
+using Test
 using Colors, ColorVectorSpace
 
 @testset "MosaicView" begin
