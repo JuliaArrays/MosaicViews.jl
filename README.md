@@ -1,6 +1,7 @@
 # MosaicViews
 
 [![Build Status](https://travis-ci.org/JuliaArrays/MosaicViews.jl.svg?branch=master)](https://travis-ci.org/JuliaArrays/MosaicViews.jl) [![codecov.io](http://codecov.io/github/JuliaArrays/MosaicViews.jl/coverage.svg?branch=master)](http://codecov.io/github/JuliaArrays/MosaicViews.jl?branch=master)
+[![PkgEval][pkgeval-img]][pkgeval-url]
 
 MosaicViews.jl provides an array decorator type, `MosaicView`,
 that creates a matrix-shaped "view" of any three or four
@@ -209,3 +210,7 @@ julia> mosaicview(A, -1, nrow=2, npad=1, rowmajor=true)
   4   4   4  -1   5   5   5  -1  -1  -1  -1
   4   4   4  -1   5   5   5  -1  -1  -1  -1
 ```
+
+
+[pkgeval-img]: https://juliaci.github.io/NanosoldierReports/pkgeval_badges/M/MosaicViews.svg
+[pkgeval-url]: https://juliaci.github.io/NanosoldierReports/pkgeval_badges/report.html
