@@ -1,6 +1,6 @@
 using MosaicViews
 using Test
-using Colors, ColorVectorSpace
+using ImageCore, ColorVectorSpace
 
 @testset "MosaicView" begin
     @test_throws ArgumentError MosaicView(rand(2))

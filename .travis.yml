@@ -3,9 +3,10 @@ language: julia
 os:
   - linux
   - osx
+  - windows
 julia:
-  - 0.7
   - 1.0
+  - 1
   - nightly
 notifications:
   email: false
@@ -36,10 +37,6 @@ matrix:
 #        - julia -e 'import Pkg; Pkg.add("Documenter")'
 #        - julia -e 'import MosaicViews; ENV["DOCUMENTER_DEBUG"] = "true"; include(joinpath("docs","make.jl"))'
 
-## uncomment the following lines to override the default test script
-script:
-    - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
-    - julia --check-bounds=yes --color=yes -e 'import Pkg; Pkg.clone(pwd()); Pkg.build("MosaicViews"); Pkg.test("MosaicViews"; coverage=true)';
 
 after_success:
   - julia -e 'using Pkg; Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder())'
