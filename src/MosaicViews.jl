@@ -2,6 +2,7 @@ module MosaicViews
 
 using ImageCore
 using PaddedViews
+using OffsetArrays
 
 export
 
@@ -101,6 +102,7 @@ end
 
 """
     mosaicview(A::AbstractArray, [fill]; [npad=0], [nrow], [ncol], [rowmajor=false]) -> MosaicView
+    mosaicview(As, args...; kwargs...)
 
 Create a two dimensional "view" of the higher dimensional array
 `A`. The resulting [`MosaicView`](@ref) will display all the
@@ -133,6 +135,11 @@ from a set of equally sized input images.
 - If `rowmajor` is set to `true`, then the slices will be
   arranged left-to-right-top-to-bottom, instead of
   top-to-bottom-left-to-right (default).
+
+If the performance isn't an issue, `A` can also be a tuple/array
+of arrays, in this case all array elements will be padded to the
+same size first, and then be concatenated to an array of higher
+dimension.
 
 # Examples
 
@@ -270,6 +277,39 @@ function mosaicview(A::AbstractArray{T,N},
     end
     mosaicview(reshape(A, (size(A,1), size(A,2), :)), args...;
                npad=npad, nrow=nrow, ncol=ncol, rowmajor=rowmajor)
+end
+
+function mosaicview(As::AbstractVector{T},
+                    fill=zero(eltype(first(As)));
+                    kwargs...) where {T <: AbstractArray}
+    length(As) == 0 && throw(ArgumentError("The given vector should not be empty"))
+    N = ndims(first(As))
+    2 <= N || throw(ArgumentError("The given array must have dimensionality of N=2 or higher"))
+    mosaicview(_padded_cat(As; fill=fill, dims=N+1), fill; kwargs...)
+end
+
+function mosaicview(As::Tuple{T, Vararg{T}},
+                    fill=zero(eltype(first(As)));
+                    kwargs...) where {T <: AbstractArray}
+    N = ndims(first(As))
+    2 <= N || throw(ArgumentError("The given array must have dimensionality of N=2 or higher"))
+    mosaicview(_padded_cat(As; fill=fill, dims=N+1), fill; kwargs...)
+end
+
+function _padded_cat(imgs; fill, dims)
+    # reduce(cat, imgs) would indeed make the whole pipeline more eagerly
+    # and thus allocates more memory
+    # TODO: inefficient when there're too many images, e.g., 512
+    if length(imgs) > 300
+        msg = "It's quite slow to visualize a tuple/list of $(length(imgs)) images"
+        msg *= "\nyou might want to manually `cat` them into one large array first."
+        @warn msg
+    end
+    if length(unique(map(axes, imgs))) == 1
+        return cat(imgs...; dims=dims)
+    else
+        cat(paddedviews(fill, imgs...)...; dims=dims)
+    end
 end
 
 end # module

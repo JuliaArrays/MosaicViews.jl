@@ -211,6 +211,25 @@ julia> mosaicview(A, -1, nrow=2, npad=1, rowmajor=true)
   4   4   4  -1   5   5   5  -1  -1  -1  -1
 ```
 
+`mosaicview` also supports array/tuple of array inputs:
+
+```julia
+julia> A = [i*ones(Int, 2, 3) for i in 1:4]
+4-element Array{Array{Int64,2},1}:
+ [1 1 1; 1 1 1]
+ [2 2 2; 2 2 2]
+ [3 3 3; 3 3 3]
+ [4 4 4; 4 4 4]
+
+ julia> mosaicview(A, nrow=3)
+ 6×6 MosaicView{Int64,4,...}:
+  1  1  1  4  4  4
+  1  1  1  4  4  4
+  2  2  2  0  0  0
+  2  2  2  0  0  0
+  3  3  3  0  0  0
+  3  3  3  0  0  0
+```
 
 [pkgeval-img]: https://juliaci.github.io/NanosoldierReports/pkgeval_badges/M/MosaicViews.svg
 [pkgeval-url]: https://juliaci.github.io/NanosoldierReports/pkgeval_badges/report.html

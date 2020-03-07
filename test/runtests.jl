@@ -65,6 +65,43 @@ end
     @test_throws ArgumentError mosaicview(rand(2))
     @test_throws ArgumentError mosaicview(rand(2,2))
 
+    @testset "Vector/Tuple of 2d Arrays input" begin
+        A = [i*ones(Int, 2, 3) for i in 1:4]
+
+        for B in (A, tuple(A...))
+            @test_throws ArgumentError mosaicview(B, nrow=0)
+            @test_throws ArgumentError mosaicview(B, ncol=0)
+            @test_throws ArgumentError mosaicview(B, nrow=1, ncol=1)
+
+            mv = mosaicview(B)
+            @test typeof(mv) <: MosaicView
+            @test eltype(mv) == eltype(eltype(B))
+            @test size(mv) == (8, 3)
+            @test @inferred(getindex(mv,3,1)) === 2
+            @test mv == [
+                1  1  1
+                1  1  1
+                2  2  2
+                2  2  2
+                3  3  3
+                3  3  3
+                4  4  4
+                4  4  4
+            ]
+
+            mv = mosaicview(B, nrow=2)
+            @test typeof(mv) <: MosaicView
+            @test eltype(mv) == eltype(eltype(B))
+            @test size(mv) == (4, 6)
+            @test mv == [
+             1  1  1  3  3  3
+             1  1  1  3  3  3
+             2  2  2  4  4  4
+             2  2  2  4  4  4
+            ]
+        end
+    end
+
     @testset "3D input" begin
         A = [(k+1)*l-1 for i in 1:2, j in 1:3, k in 1:2, l in 1:2]
         B = reshape(A, 2, 3, :)
