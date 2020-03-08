@@ -2,7 +2,6 @@ module MosaicViews
 
 using ImageCore
 using PaddedViews
-using OffsetArrays
 
 export
 
