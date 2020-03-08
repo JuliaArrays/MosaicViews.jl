@@ -1,6 +1,5 @@
 module MosaicViews
 
-using ImageCore
 using PaddedViews
 
 export
@@ -253,7 +252,7 @@ function mosaicview(A::AbstractArray{T,3},
         # before top-to-bottom. (note the swap of "ncol" and "nrow")
         res_dims = (size(A_pad,1), size(A_pad,2), ncol, nrow)
         A_tp = reshape(A_pad, res_dims)
-        permuteddimsview(A_tp, (1, 2, 4, 3))
+        PermutedDimsArray(A_tp, (1, 2, 4, 3))
     end
     # decrease size of the resulting MosaicView by npad to not have
     # a border on the right side and bottom side of the final mosaic.
