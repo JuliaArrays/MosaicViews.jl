@@ -27,7 +27,7 @@ julia> A = MNIST.convert2image(MNIST.traintensor(1:9))
 28×28×9 Array{Gray{Float64},3}:
 [...]
 
-julia> mosaicview(A, .5, nrow=2, npad=1, rowmajor=true)
+julia> mosaicview(A, fillvalue=.5, nrow=2, npad=1, rowmajor=true)
 57×144 MosaicViews.MosaicView{Gray{Float64},4,...}:
 [...]
 ```
@@ -128,7 +128,7 @@ In contrast to using the constructor of `MosaicView` directly,
 the function `mosaicview` also allows for a couple of convenience
 keywords.
 
-- The optional positional parameter `fill` defines the value that
+- The parameter `fillvalue` defines the value that
   that should be used for empty space. This can be padding caused
   by `npad`, or empty mosaic tiles in case the number of matrix
   slices in `A` is smaller than `nrow*ncol`.
@@ -202,7 +202,7 @@ julia> mosaicview(A, nrow=2, npad=1, rowmajor=true)
  4  4  4  0  5  5  5  0  0  0  0
  4  4  4  0  5  5  5  0  0  0  0
 
-julia> mosaicview(A, -1, nrow=2, npad=1, rowmajor=true)
+julia> mosaicview(A, fillvalue=-1, nrow=2, npad=1, rowmajor=true)
 5×11 MosaicViews.MosaicView{Int64,4,...}:
   1   1   1  -1   2   2   2  -1   3   3   3
   1   1   1  -1   2   2   2  -1   3   3   3
@@ -221,14 +221,23 @@ julia> A = [i*ones(Int, 2, 3) for i in 1:4]
  [3 3 3; 3 3 3]
  [4 4 4; 4 4 4]
 
- julia> mosaicview(A, nrow=3)
- 6×6 MosaicView{Int64,4,...}:
-  1  1  1  4  4  4
-  1  1  1  4  4  4
-  2  2  2  0  0  0
-  2  2  2  0  0  0
-  3  3  3  0  0  0
-  3  3  3  0  0  0
+julia> mosaicview(A, nrow=3)
+6×6 MosaicView{Int64,4,...}:
+ 1  1  1  4  4  4
+ 1  1  1  4  4  4
+ 2  2  2  0  0  0
+ 2  2  2  0  0  0
+ 3  3  3  0  0  0
+ 3  3  3  0  0  0
+
+julia> mosaicview(A..., nrow=3)
+6×6 MosaicView{Int64,4,...}:
+ 1  1  1  4  4  4
+ 1  1  1  4  4  4
+ 2  2  2  0  0  0
+ 2  2  2  0  0  0
+ 3  3  3  0  0  0
+ 3  3  3  0  0  0
 ```
 
 [pkgeval-img]: https://juliaci.github.io/NanosoldierReports/pkgeval_badges/M/MosaicViews.svg
