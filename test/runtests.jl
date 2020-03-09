@@ -256,6 +256,10 @@ end
         mv = mosaicview(A, fillvalue=colorant"white", rowmajor=true, ncol=3)
         @test eltype(mv) == eltype(A)
         @test @inferred(getindex(mv, 3, 4)) == RGB(1,1,1)
+
+        # this should work regardless they're of different size and color
+        @test_nowarn mosaicview(rand(RGB{Float32}, 4, 4),
+                                rand(Gray{N0f8}, 5, 5))
     end
 end
 

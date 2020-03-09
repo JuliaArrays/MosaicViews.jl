@@ -329,10 +329,10 @@ function mosaicview(As::AbstractVector{T};
                fillvalue=fillvalue, kwargs...)
 end
 
-function mosaicview(As::Tuple{T, Vararg{T}};
+function mosaicview(As::Tuple;
                     fillvalue=zero(eltype(first(As))),
                     center=true,
-                    kwargs...) where {T <: AbstractArray}
+                    kwargs...)
     N = ndims(first(As))
     2 <= N || throw(ArgumentError("The given array must have dimensionality of N=2 or higher"))
     mosaicview(_padded_cat(As; center=center, fillvalue=fillvalue, dims=N+1);
