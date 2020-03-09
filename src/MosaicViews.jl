@@ -353,7 +353,7 @@ function _padded_cat(imgs; center, fillvalue, dims)
     else
         if center
             # TODO: ~1.5x slower than non-centered version
-            reduce(sym_paddedviews(zero(eltype(imgs[1])), imgs...)) do x, y
+            reduce(sym_paddedviews(fillvalue, imgs...)) do x, y
                 x = OffsetArray(x, 1 .- first.(axes(x)))
                 y = OffsetArray(y, 1 .- first.(axes(y)))
                 cat(x, y; dims=dims)
