@@ -99,8 +99,9 @@ end
 end
 
 """
-    mosaicview(A::AbstractArray, [fill]; [npad=0], [nrow], [ncol], [rowmajor=false]) -> MosaicView
-    mosaicview(As, args...; kwargs...)
+    mosaicview(A::AbstractArray; [fillvalue=<zero unit>], [npad=0], [nrow], [ncol], [rowmajor=false]) -> MosaicView
+    mosaicview(A::AbstractArray...; kwargs...)
+    mosaicview(As; kwargs...)
 
 Create a two dimensional "view" of the higher dimensional array
 `A`. The resulting [`MosaicView`](@ref) will display all the
@@ -114,7 +115,7 @@ not type stable and should only be used if performance is not a
 priority. A typical use case would be to create an image mosaic
 from a set of equally sized input images.
 
-- The optional positional parameter `fill` defines the value that
+- The parameter `fillvalue` defines the value that
   that should be used for empty space. This can be padding caused
   by `npad`, or empty mosaic tiles in case the number of matrix
   slices in `A` is smaller than `nrow*ncol`.
@@ -197,7 +198,7 @@ julia> mosaicview(A, nrow=2, npad=1, rowmajor=true)
  4  4  4  0  5  5  5  0  0  0  0
  4  4  4  0  5  5  5  0  0  0  0
 
-julia> mosaicview(A, -1, nrow=2, npad=1, rowmajor=true)
+julia> mosaicview(A, fillvalue=-1, nrow=2, npad=1, rowmajor=true)
 5×11 MosaicViews.MosaicView{Int64,4,...}:
   1   1   1  -1   2   2   2  -1   3   3   3
   1   1   1  -1   2   2   2  -1   3   3   3
@@ -205,9 +206,37 @@ julia> mosaicview(A, -1, nrow=2, npad=1, rowmajor=true)
   4   4   4  -1   5   5   5  -1  -1  -1  -1
   4   4   4  -1   5   5   5  -1  -1  -1  -1
 ```
+
+
+```julia-repl
+julia> A = [i*ones(Int, 2, 3) for i in 1:4]
+4-element Array{Array{Int64,2},1}:
+ [1 1 1; 1 1 1]
+ [2 2 2; 2 2 2]
+ [3 3 3; 3 3 3]
+ [4 4 4; 4 4 4]
+
+julia> mosaicview(A, nrow=3)
+6×6 MosaicView{Int64,4,...}:
+  1  1  1  4  4  4
+  1  1  1  4  4  4
+  2  2  2  0  0  0
+  2  2  2  0  0  0
+  3  3  3  0  0  0
+  3  3  3  0  0  0
+
+julia> mosaicview(A..., nrow=3)
+6×6 MosaicView{Int64,4,...}:
+  1  1  1  4  4  4
+  1  1  1  4  4  4
+  2  2  2  0  0  0
+  2  2  2  0  0  0
+  3  3  3  0  0  0
+  3  3  3  0  0  0
+```
 """
-function mosaicview(A::AbstractArray{T,3},
-                    fill = zero(T);
+function mosaicview(A::AbstractArray{T,3};
+                    fillvalue = zero(T),
                     npad = 0,
                     nrow = -1,
                     ncol = -1,
@@ -239,7 +268,7 @@ function mosaicview(A::AbstractArray{T,3},
     # dimensions according to npad. think of this as border
     # between tiles (useful for images)
     pad_dims = (size(A,1) + npad, size(A,2) + npad, ntile_ceil)
-    A_pad = PaddedView(T(fill), A, pad_dims)
+    A_pad = PaddedView(T(fillvalue), A, pad_dims)
     # next we reshape the image such that it reflects the
     # specified nrow and ncol
     A_new = if !rowmajor
@@ -260,12 +289,10 @@ function mosaicview(A::AbstractArray{T,3},
     MosaicView{T,4}(A_new, dims)
 end
 
-function mosaicview(A::AbstractArray{T,N},
-                    args...;
-                    npad = 0,
+function mosaicview(A::AbstractArray{T,N};
                     nrow = -1,
                     ncol = -1,
-                    rowmajor = false) where {T,N}
+                    kwargs...) where {T,N}
     3 <= N || throw(ArgumentError("The given array must have dimensionality of N=3 or higher"))
     # if neither nrow nor ncol is provided then automatically choose
     # nrow and ncol to reflect what MosaicView does (i.e. use size)
@@ -273,28 +300,30 @@ function mosaicview(A::AbstractArray{T,N},
         nrow = size(A, 3)
         # ncol = size(A, 4)
     end
-    mosaicview(reshape(A, (size(A,1), size(A,2), :)), args...;
-               npad=npad, nrow=nrow, ncol=ncol, rowmajor=rowmajor)
+    mosaicview(reshape(A, (size(A,1), size(A,2), :));
+               nrow=nrow, ncol=ncol, kwargs...)
 end
 
-function mosaicview(As::AbstractVector{T},
-                    fill=zero(eltype(first(As)));
+mosaicview(As::AbstractArray...; kwargs...) = mosaicview(As; kwargs...)
+
+function mosaicview(As::AbstractVector{T};
+                    fillvalue=zero(eltype(first(As))),
                     kwargs...) where {T <: AbstractArray}
     length(As) == 0 && throw(ArgumentError("The given vector should not be empty"))
     N = ndims(first(As))
     2 <= N || throw(ArgumentError("The given array must have dimensionality of N=2 or higher"))
-    mosaicview(_padded_cat(As; fill=fill, dims=N+1), fill; kwargs...)
+    mosaicview(_padded_cat(As; fillvalue=fillvalue, dims=N+1); fillvalue=fillvalue, kwargs...)
 end
 
-function mosaicview(As::Tuple{T, Vararg{T}},
-                    fill=zero(eltype(first(As)));
+function mosaicview(As::Tuple;
+                    fillvalue=zero(eltype(first(As))),
                     kwargs...) where {T <: AbstractArray}
     N = ndims(first(As))
     2 <= N || throw(ArgumentError("The given array must have dimensionality of N=2 or higher"))
-    mosaicview(_padded_cat(As; fill=fill, dims=N+1), fill; kwargs...)
+    mosaicview(_padded_cat(As; fillvalue=fillvalue, dims=N+1); fillvalue=fillvalue, kwargs...)
 end
 
-function _padded_cat(imgs; fill, dims)
+function _padded_cat(imgs; fillvalue, dims)
     # reduce(cat, imgs) would indeed make the whole pipeline more eagerly
     # and thus allocates more memory
     # TODO: inefficient when there're too many images, e.g., 512
@@ -306,8 +335,12 @@ function _padded_cat(imgs; fill, dims)
     if length(unique(map(axes, imgs))) == 1
         return cat(imgs...; dims=dims)
     else
-        cat(paddedviews(fill, imgs...)...; dims=dims)
+        cat(paddedviews(fillvalue, imgs...)...; dims=dims)
     end
 end
+
+### deprecations
+
+@deprecate mosaicview(A::AbstractArray, fillvalue; kwargs...) mosaicview(A; fillvalue=fillvalue, kwargs...)
 
 end # module

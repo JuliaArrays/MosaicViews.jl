@@ -74,6 +74,7 @@ end
             @test_throws ArgumentError mosaicview(B, nrow=1, ncol=1)
 
             mv = mosaicview(B)
+            @test mosaicview(B...) == mv
             @test typeof(mv) <: MosaicView
             @test eltype(mv) == eltype(eltype(B))
             @test size(mv) == (8, 3)
@@ -100,6 +101,10 @@ end
              2  2  2  4  4  4
             ]
         end
+
+        @test mosaicview(A...) == mosaicview(A)
+        @test mosaicview(A..., nrow=2) == mosaicview(A, nrow=2)
+        @test mosaicview(A..., nrow=2, rowmajor=true) == mosaicview(A, nrow=2, rowmajor=true)
     end
 
     @testset "3D input" begin
@@ -130,6 +135,10 @@ end
         @test typeof(mv) <: MosaicView
         @test eltype(mv) == eltype(B)
         @test size(mv) == (4, 6)
+
+        @test mosaicview(B, B) == mosaicview(cat(B, B; dims=4))
+        @test mosaicview(B, B, nrow=2) == mosaicview(cat(B, B; dims=4), nrow=2)
+        @test mosaicview(B, B, nrow=2, rowmajor=true) == mosaicview(cat(B, B; dims=4), nrow=2, rowmajor=true)
     end
 
     @testset "4D input" begin
@@ -195,7 +204,7 @@ end
             5  5  5  0  0  0  0  0  0  0  0  0  0
             5  5  5  0  0  0  0  0  0  0  0  0  0
         ]
-        mv = mosaicview(A, -1.0, rowmajor=true, ncol=3, npad=1)
+        mv = mosaicview(A, fillvalue=-1.0, rowmajor=true, ncol=3, npad=1)
         @test typeof(mv) <: MosaicView
         @test eltype(mv) == eltype(A)
         @test size(mv) == (5, 11)
@@ -206,6 +215,10 @@ end
              5   5   5  -1  -1  -1  -1  -1  -1  -1  -1
              5   5   5  -1  -1  -1  -1  -1  -1  -1  -1
         ]
+
+        @test mosaicview(A, A) == mosaicview(cat(A, A; dims=5))
+        @test mosaicview(A, A, nrow=2) == mosaicview(cat(A, A; dims=4), nrow=2)
+        @test mosaicview(A, A, nrow=2, rowmajor=true) == mosaicview(cat(A, A; dims=4), nrow=2, rowmajor=true)
     end
 
     @testset "Colorant Array" begin
@@ -216,8 +229,17 @@ end
         mv = mosaicview(A, rowmajor=true, ncol=3)
         @test eltype(mv) == eltype(A)
         @test @inferred(getindex(mv, 3, 4)) == RGB(0,0,0)
-        mv = mosaicview(A, colorant"white", rowmajor=true, ncol=3)
+        mv = mosaicview(A, fillvalue=colorant"white", rowmajor=true, ncol=3)
         @test eltype(mv) == eltype(A)
         @test @inferred(getindex(mv, 3, 4)) == RGB(1,1,1)
     end
+end
+
+
+@testset "deprecations" begin
+    @info "deprecations are expected"
+    A = [(k+1)*l-1 for i in 1:2, j in 1:3, k in 1:2, l in 1:2]
+    mv_old = mosaicview(A, -1.0, rowmajor=true, ncol=3, npad=1)
+    mv_new = mosaicview(A, fillvalue=-1.0, rowmajor=true, ncol=3, npad=1)
+    @test mv_old == mv_new
 end
