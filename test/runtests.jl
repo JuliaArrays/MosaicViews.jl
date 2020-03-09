@@ -105,6 +105,26 @@ end
         @test mosaicview(A...) == mosaicview(A)
         @test mosaicview(A..., nrow=2) == mosaicview(A, nrow=2)
         @test mosaicview(A..., nrow=2, rowmajor=true) == mosaicview(A, nrow=2, rowmajor=true)
+
+        A1 = reshape([1 2 3], (1, 3))
+        A2 = reshape([4;5;6], (3, 1))
+        @test mosaicview([A1, A2]; center=false) == [
+         1 2 3;
+         0 0 0;
+         0 0 0;
+         4 0 0;
+         5 0 0;
+         6 0 0
+        ]
+        @test mosaicview([A1, A2]; center=true) == [
+         0 0 0;
+         1 2 3;
+         0 0 0;
+         0 4 0;
+         0 5 0;
+         0 6 0
+        ]
+        @test mosaicview([A1, A2]) == mosaicview([A1, A2]; center=true)
     end
 
     @testset "3D input" begin
@@ -113,6 +133,8 @@ end
         @test_throws ArgumentError mosaicview(B, nrow=0)
         @test_throws ArgumentError mosaicview(B, ncol=0)
         @test_throws ArgumentError mosaicview(B, nrow=1, ncol=1)
+        @test mosaicview(B, center=2) == mosaicview(B) # no op
+
         mv = mosaicview(B)
         @test typeof(mv) <: MosaicView
         @test eltype(mv) == eltype(B)
@@ -146,6 +168,8 @@ end
         @test_throws ArgumentError mosaicview(A, nrow=0)
         @test_throws ArgumentError mosaicview(A, ncol=0)
         @test_throws ArgumentError mosaicview(A, nrow=1, ncol=1)
+        @test mosaicview(A, center=2) == mosaicview(A) # no op
+
         mv = mosaicview(A)
         @test mv == MosaicView(A)
         @test typeof(mv) != typeof(MosaicView(A))
