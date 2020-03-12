@@ -1,6 +1,7 @@
 using MosaicViews
 using Test
 using ImageCore, ColorVectorSpace
+using OffsetArrays
 
 @testset "MosaicView" begin
     @test_throws ArgumentError MosaicView(rand(2))
@@ -67,8 +68,9 @@ end
 
     @testset "Vector/Tuple of 2d Arrays input" begin
         A = [i*ones(Int, 2, 3) for i in 1:4]
+        Ao = [i*ones(Int, 0i:1, 0:2) for i in 1:4]
 
-        for B in (A, tuple(A...))
+        for B in (A, tuple(A...), Ao)
             @test_throws ArgumentError mosaicview(B, nrow=0)
             @test_throws ArgumentError mosaicview(B, ncol=0)
             @test_throws ArgumentError mosaicview(B, nrow=1, ncol=1)
@@ -79,7 +81,7 @@ end
             @test eltype(mv) == eltype(eltype(B))
             @test size(mv) == (8, 3)
             @test @inferred(getindex(mv,3,1)) === 2
-            @test mv == [
+            @test collect(mv) == [
                 1  1  1
                 1  1  1
                 2  2  2
@@ -94,7 +96,7 @@ end
             @test typeof(mv) <: MosaicView
             @test eltype(mv) == eltype(eltype(B))
             @test size(mv) == (4, 6)
-            @test mv == [
+            @test collect(mv) == [
              1  1  1  3  3  3
              1  1  1  3  3  3
              2  2  2  4  4  4
@@ -125,6 +127,26 @@ end
          0 6 0
         ]
         @test mosaicview([A1, A2]) == mosaicview([A1, A2]; center=true)
+
+        # same size but different axes
+        A1 = fill(1, 1:2, 1:2)
+        A2 = fill(2, 2:3, 2:3)
+        @test collect(mosaicview(A1, A2; center=true)) == [
+            1 1 0;
+            1 1 0;
+            0 0 0;
+            2 2 0;
+            2 2 0;
+            0 0 0;
+        ]
+        @test collect(mosaicview(A1, A2; center=false)) == [
+            1 1 0;
+            1 1 0;
+            0 0 0;
+            0 0 0;
+            0 2 2;
+            0 2 2;
+        ]
     end
 
     @testset "3D input" begin

@@ -348,18 +348,23 @@ function _padded_cat(imgs; center, fillvalue, dims)
         msg *= "\nyou might want to manually `cat` them into one large array first."
         @warn msg
     end
-    if length(unique(map(axes, imgs))) == 1
+    has_offsets = any(Base.has_offset_axes.(imgs))
+    if !has_offsets && length(unique(map(axes, imgs))) == 1
         return cat(imgs...; dims=dims)
     else
-        if center
-            # TODO: ~1.5x slower than non-centered version
-            reduce(sym_paddedviews(fillvalue, imgs...)) do x, y
+        if !has_offsets && !center
+            # in this case the index of PaddedView starts from 1
+            # hence we can directly pass them into `cat`
+            cat(paddedviews(fillvalue, imgs...)...; dims=dims)
+        else
+            # TODO: it's unidentified but this version allocates more memory
+            #       and become slower (~1.5X) than a direct `cat`
+            pad_fn = center ? sym_paddedviews : paddedviews
+            reduce(pad_fn(fillvalue, imgs...)) do x, y
                 x = OffsetArray(x, 1 .- first.(axes(x)))
                 y = OffsetArray(y, 1 .- first.(axes(y)))
                 cat(x, y; dims=dims)
             end
-        else
-            cat(paddedviews(fillvalue, imgs...)...; dims=dims)
         end
     end
 end
