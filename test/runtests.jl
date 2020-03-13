@@ -4,9 +4,31 @@ using ImageCore, ColorVectorSpace
 using OffsetArrays
 
 @testset "MosaicView" begin
-    @test_throws ArgumentError MosaicView(rand(2))
-    @test_throws ArgumentError MosaicView(rand(2,2))
     @test_throws ArgumentError MosaicView(rand(2,2,2,2,2))
+
+    @testset "1D input" begin
+        A = [1,2,3]
+        mv = @inferred MosaicView(A)
+        @test parent(mv) === A
+        @test typeof(mv) <: MosaicView
+        @test eltype(mv) == eltype(A)
+        @test size(mv) == (3, 1) # 1D vector is lifted to 2D matrix
+        @test axes(mv) == (Base.OneTo(3), Base.OneTo(1))
+        @test @inferred(getindex(mv, 1, 1)) === 1
+        @test @inferred(getindex(mv, 2, 1)) === 2
+    end
+
+    @testset "2D input" begin
+        A = [1 2;3 4]
+        mv = @inferred MosaicView(A)
+        @test parent(mv) === A
+        @test typeof(mv) <: MosaicView
+        @test eltype(mv) == eltype(A)
+        @test size(mv) == (2, 2)
+        @test axes(mv) == (Base.OneTo(2), Base.OneTo(2))
+        @test @inferred(getindex(mv, 1, 1)) === 1
+        @test @inferred(getindex(mv, 2, 1)) === 3
+    end
 
     @testset "3D input" begin
         A = zeros(Int,2,2,2)
@@ -63,10 +85,21 @@ using OffsetArrays
 end
 
 @testset "mosaicview" begin
-    @test_throws ArgumentError mosaicview(rand(2))
-    @test_throws ArgumentError mosaicview(rand(2,2))
+    @testset "1D input" begin
+        A1 = [1, 2, 3]
+        A2 = [4, 5, 6]
+        mv = mosaicview(A1, A2)
+        @test typeof(mv) <: MosaicView
+        @test eltype(mv) == eltype(A1)
+        @test size(mv) == (6, 1)
+        @test @inferred(getindex(mv, 1, 1)) == 1
 
-    @testset "Vector/Tuple of 2d Arrays input" begin
+        @test mosaicview(A1, A2; nrow=1) == [1 4; 2 5; 3 6]
+        @test mosaicview(A1, A2; nrow=2) == reshape([1, 2, 3, 4, 5, 6], (6, 1))
+        @test mosaicview(A1, A2) == mosaicview([A1, A2]) == mosaicview((A1, A2))
+    end
+
+    @testset "2D input" begin
         A = [i*ones(Int, 2, 3) for i in 1:4]
         Ao = [i*ones(Int, 0i:1, 0:2) for i in 1:4]
 
@@ -147,6 +180,8 @@ end
             0 2 2;
             0 2 2;
         ]
+
+        @test mosaicview(A1) == A1 # a trivial case
     end
 
     @testset "3D input" begin
