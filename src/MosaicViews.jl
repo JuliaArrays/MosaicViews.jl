@@ -257,14 +257,6 @@ function mosaicview(A::AbstractArray{T,3};
     ncol == -1 || ncol > 0 || throw(ArgumentError("The parameter \"ncol\" must be greater than 0"))
     npad >= 0 || throw(ArgumentError("The parameter \"npad\" must be greater than or equal to 0"))
     ntile = size(A,3)
-    if ntile == 1
-        # A trivial case where none of the keywords are used
-        if !(nrow in (-1, 1) && ncol in (-1, 1))
-            throw(ArgumentError("Invalid (nrow, ncol) == ($nrow, $ncol), it should be `-1` or `1`"))
-        end
-        return MosaicView(A)
-    end
-
     ntile_ceil = ntile # ntile need not be integer divideable
     if nrow == -1 && ncol == -1
         # automatically choose nrow to reflect what MosaicView does

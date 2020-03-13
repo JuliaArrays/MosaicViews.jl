@@ -183,10 +183,6 @@ end
         @test mosaicview(B, B) == mosaicview(cat(B, B; dims=4))
         @test mosaicview(B, B, nrow=2) == mosaicview(cat(B, B; dims=4), nrow=2)
         @test mosaicview(B, B, nrow=2, rowmajor=true) == mosaicview(cat(B, B; dims=4), nrow=2, rowmajor=true)
-
-        B = ones(Int, 3, 3, 1)
-        @test_throws ArgumentError mosaicview(B; ncol=3)
-        @test mosaicview(B) == MosaicView(B)
     end
 
     @testset "4D input" begin
