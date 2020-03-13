@@ -63,18 +63,26 @@ struct MosaicView{T,N,A<:AbstractArray{T,N}} <: AbstractArray{T,2}
     pdims::NTuple{N,Int}
 
     function MosaicView{T,N}(A::AbstractArray{T,N}, dims) where {T,N}
-        3 <= N <= 4 || throw(ArgumentError("The given array must have dimensionality N=3 or N=4"))
+        1 <= N <= 4 || throw(ArgumentError("The given array must have dimensionality N=3 or N=4"))
+        # unless we store the axes in the struct, we can't support offset indices
+        # N=2 is a special case that we can provide a specialization on `axes`
+        # but for consistency with cases of other dimensions, disable it as well
+        Base.require_one_based_indexing(A)
         new{T,N,typeof(A)}(A, dims, size(A))
     end
 end
 
 function MosaicView(A::AbstractArray{T,N}) where {T,N}
+    # vectors are lifted to 2D matrix, 3d/4d arrays are reshaped to 2D matrix
     dims = (size(A,1) * size(A,3), size(A,2) * size(A,4))
     MosaicView{T,N}(A, dims)
 end
 
 Base.parent(mv::MosaicView) = mv.parent
 Base.size(mv::MosaicView) = mv.dims
+
+# fallback for 1d/2d case
+@inline Base.getindex(mv::MosaicView, ind::Int...) = mv.parent[ind...]
 
 @inline function Base.getindex(mv::MosaicView{T,3,A}, i::Int, j::Int) where {T,A}
     @boundscheck checkbounds(mv, i, j)
@@ -305,7 +313,6 @@ function mosaicview(A::AbstractArray{T,N};
                     nrow = -1,
                     ncol = -1,
                     kwargs...) where {T,N}
-    3 <= N || throw(ArgumentError("The given array must have dimensionality of N=3 or higher"))
     # if neither nrow nor ncol is provided then automatically choose
     # nrow and ncol to reflect what MosaicView does (i.e. use size)
     if nrow == -1 && ncol == -1
@@ -324,8 +331,7 @@ function mosaicview(As::AbstractVector{T};
                     kwargs...) where {T <: AbstractArray}
     length(As) == 0 && throw(ArgumentError("The given vector should not be empty"))
     N = ndims(first(As))
-    2 <= N || throw(ArgumentError("The given array must have dimensionality of N=2 or higher"))
-    mosaicview(_padded_cat(As; center=center, fillvalue=fillvalue, dims=N+1);
+    mosaicview(_padded_cat(As; center=center, fillvalue=fillvalue, dims=max(3, N+1));
                fillvalue=fillvalue, kwargs...)
 end
 
@@ -334,8 +340,7 @@ function mosaicview(As::Tuple;
                     center=true,
                     kwargs...)
     N = ndims(first(As))
-    2 <= N || throw(ArgumentError("The given array must have dimensionality of N=2 or higher"))
-    mosaicview(_padded_cat(As; center=center, fillvalue=fillvalue, dims=N+1);
+    mosaicview(_padded_cat(As; center=center, fillvalue=fillvalue, dims=max(3, N+1));
                fillvalue=fillvalue, kwargs...)
 end
 
