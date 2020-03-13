@@ -318,6 +318,11 @@ end
         @test_nowarn mosaicview(rand(RGB{Float32}, 4, 4),
                                 rand(Gray{N0f8}, 5, 5))
     end
+
+    # all arrays should have the same dimension
+    @test_throws ArgumentError mosaicview(ones(2), ones(1, 2))
+    @test_throws ArgumentError mosaicview((ones(2), ones(1, 2)))
+    @test_throws ArgumentError mosaicview([ones(2), ones(1, 2)])
 end
 
 
