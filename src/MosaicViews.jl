@@ -67,7 +67,7 @@ struct MosaicView{T,N,A<:AbstractArray{T,N}} <: AbstractArray{T,2}
         # unless we store the axes in the struct, we can't support offset indices
         # N=2 is a special case that we can provide a specialization on `axes`
         # but for consistency with cases of other dimensions, disable it as well
-        Base.require_one_based_indexing(A)
+        require_one_based_indexing(A)
         new{T,N,typeof(A)}(A, dims, size(A))
     end
 end
@@ -374,6 +374,12 @@ function _padded_cat(imgs; center, fillvalue, dims)
     end
 end
 
+### compat
+if VERSION < v"1.1"
+    require_one_based_indexing(A...) = !Base.has_offset_axes(A...) || throw(ArgumentError("offset arrays are not supported but got an array with index other than 1"))
+else
+    require_one_based_indexing = Base.require_one_based_indexing
+end
 ### deprecations
 
 @deprecate mosaicview(A::AbstractArray, fillvalue; kwargs...) mosaicview(A; fillvalue=fillvalue, kwargs...)
