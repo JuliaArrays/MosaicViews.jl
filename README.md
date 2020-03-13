@@ -148,6 +148,10 @@ keywords.
   arranged left-to-right-top-to-bottom, instead of
   top-to-bottom-left-to-right (default).
 
+- If `center` is set to `true`, then the padded arrays will be shifted
+  to the center instead of in the top-left corner (default). This
+  parameter is only useful when arrays are of different sizes.
+
 ```julia
 julia> A = [k for i in 1:2, j in 1:3, k in 1:5]
 2×3×5 Array{Int64,3}:

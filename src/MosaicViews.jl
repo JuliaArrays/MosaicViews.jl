@@ -1,6 +1,7 @@
 module MosaicViews
 
 using PaddedViews
+using OffsetArrays
 
 export
 
@@ -99,7 +100,13 @@ end
 end
 
 """
-    mosaicview(A::AbstractArray; [fillvalue=<zero unit>], [npad=0], [nrow], [ncol], [rowmajor=false]) -> MosaicView
+    mosaicview(A::AbstractArray;
+               [fillvalue=<zero unit>],
+               [npad=0],
+               [nrow],
+               [ncol],
+               [rowmajor=false],
+               [center=true]) -> MosaicView
     mosaicview(A::AbstractArray...; kwargs...)
     mosaicview(As; kwargs...)
 
@@ -134,6 +141,10 @@ from a set of equally sized input images.
 - If `rowmajor` is set to `true`, then the slices will be
   arranged left-to-right-top-to-bottom, instead of
   top-to-bottom-left-to-right (default).
+
+- If `center` is set to `true`, then the padded arrays will be shifted
+  to the center instead of in the top-left corner (default). This
+  parameter is only useful when arrays are of different sizes.
 
 If the performance isn't an issue, `A` can also be a tuple/array
 of arrays, in this case all array elements will be padded to the
@@ -240,7 +251,8 @@ function mosaicview(A::AbstractArray{T,3};
                     npad = 0,
                     nrow = -1,
                     ncol = -1,
-                    rowmajor = false) where T
+                    rowmajor = false,
+                    kwargs...) where T
     nrow == -1 || nrow > 0 || throw(ArgumentError("The parameter \"nrow\" must be greater than 0"))
     ncol == -1 || ncol > 0 || throw(ArgumentError("The parameter \"ncol\" must be greater than 0"))
     npad >= 0 || throw(ArgumentError("The parameter \"npad\" must be greater than or equal to 0"))
@@ -308,22 +320,26 @@ mosaicview(As::AbstractArray...; kwargs...) = mosaicview(As; kwargs...)
 
 function mosaicview(As::AbstractVector{T};
                     fillvalue=zero(eltype(first(As))),
+                    center=true,
                     kwargs...) where {T <: AbstractArray}
     length(As) == 0 && throw(ArgumentError("The given vector should not be empty"))
     N = ndims(first(As))
     2 <= N || throw(ArgumentError("The given array must have dimensionality of N=2 or higher"))
-    mosaicview(_padded_cat(As; fillvalue=fillvalue, dims=N+1); fillvalue=fillvalue, kwargs...)
+    mosaicview(_padded_cat(As; center=center, fillvalue=fillvalue, dims=N+1);
+               fillvalue=fillvalue, kwargs...)
 end
 
 function mosaicview(As::Tuple;
                     fillvalue=zero(eltype(first(As))),
-                    kwargs...) where {T <: AbstractArray}
+                    center=true,
+                    kwargs...)
     N = ndims(first(As))
     2 <= N || throw(ArgumentError("The given array must have dimensionality of N=2 or higher"))
-    mosaicview(_padded_cat(As; fillvalue=fillvalue, dims=N+1); fillvalue=fillvalue, kwargs...)
+    mosaicview(_padded_cat(As; center=center, fillvalue=fillvalue, dims=N+1);
+               fillvalue=fillvalue, kwargs...)
 end
 
-function _padded_cat(imgs; fillvalue, dims)
+function _padded_cat(imgs; center, fillvalue, dims)
     # reduce(cat, imgs) would indeed make the whole pipeline more eagerly
     # and thus allocates more memory
     # TODO: inefficient when there're too many images, e.g., 512
@@ -332,10 +348,24 @@ function _padded_cat(imgs; fillvalue, dims)
         msg *= "\nyou might want to manually `cat` them into one large array first."
         @warn msg
     end
-    if length(unique(map(axes, imgs))) == 1
+    has_offsets = any(Base.has_offset_axes.(imgs))
+    if !has_offsets && length(unique(map(axes, imgs))) == 1
         return cat(imgs...; dims=dims)
     else
-        cat(paddedviews(fillvalue, imgs...)...; dims=dims)
+        if !has_offsets && !center
+            # in this case the index of PaddedView starts from 1
+            # hence we can directly pass them into `cat`
+            cat(paddedviews(fillvalue, imgs...)...; dims=dims)
+        else
+            # TODO: it's unidentified but this version allocates more memory
+            #       and become slower (~1.5X) than a direct `cat`
+            pad_fn = center ? sym_paddedviews : paddedviews
+            reduce(pad_fn(fillvalue, imgs...)) do x, y
+                x = OffsetArray(x, 1 .- first.(axes(x)))
+                y = OffsetArray(y, 1 .- first.(axes(y)))
+                cat(x, y; dims=dims)
+            end
+        end
     end
 end
 
