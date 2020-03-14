@@ -109,26 +109,27 @@ end
 
 """
     mosaicview(A::AbstractArray;
-               [fillvalue=<zero unit>],
-               [npad=0],
-               [nrow],
-               [ncol],
-               [rowmajor=false],
+               [fillvalue=<zero unit>], [npad=0],
+               [nrow], [ncol], [rowmajor=false],
                [center=true]) -> MosaicView
-    mosaicview(A::AbstractArray...; kwargs...)
-    mosaicview(As; kwargs...)
+    mosaicview(As::AbstractArray...; kwargs...)
+    mosaicview(As::Union{Tuple, AbstractVector}; kwargs...)
 
-Create a two dimensional "view" of the higher dimensional array
-`A`. The resulting [`MosaicView`](@ref) will display all the
-matrix slices of the first two dimensions of `A` arranged as a
-single large mosaic (in the form of a matrix).
+Create a two dimensional "view" from array `A` or a list of arrays `As`.
+
+The resulting [`MosaicView`](@ref) will display all the matrix
+slices of the first two dimensions of `A` arranged as a single
+large mosaic (in the form of a matrix).
+
+If multiple arrays in passed, they'll will be center-padded to a common
+size, and then be concatenated to create a higher dimensional array.
+
+# Arguments
 
 In contrast to using the constructor of [`MosaicView`](@ref)
 directly, the function `mosaicview` also allows for a couple of
-convenience keywords. Note that as a consequence the function is
-not type stable and should only be used if performance is not a
-priority. A typical use case would be to create an image mosaic
-from a set of equally sized input images.
+convenience keywords. A typical use case would be to create an
+image mosaic from a set of input images.
 
 - The parameter `fillvalue` defines the value that
   that should be used for empty space. This can be padding caused
@@ -141,25 +142,60 @@ from a set of equally sized input images.
   should be visually separated by some grid lines.
 
 - The parameters `nrow` and `ncol` can be used to choose the
-  number of rows and/or columns the mosaic should be arranged in.
-  Note that it suffices to specify one of the two parameters, as
-  the other one can be inferred accordingly. The default in case
-  none of the two are specified is `nrow = size(A,3)`.
+  number of tiles in row and/or column direction the mosaic should
+  be arranged in. Note that it suffices to specify one of the
+  two parameters, as the other one can be inferred accordingly.
+  The default in case none of the two are specified is `nrow = size(A,3)`.
 
 - If `rowmajor` is set to `true`, then the slices will be
   arranged left-to-right-top-to-bottom, instead of
-  top-to-bottom-left-to-right (default).
+  top-to-bottom-left-to-right (default). The layout only differs
+  in non-trivial cases, i.e., when `nrow != 1` and `ncol != 1`.
 
 - If `center` is set to `true`, then the padded arrays will be shifted
   to the center instead of in the top-left corner (default). This
   parameter is only useful when arrays are of different sizes.
 
-If the performance isn't an issue, `A` can also be a tuple/array
-of arrays, in this case all array elements will be padded to the
-same size first, and then be concatenated to an array of higher
-dimension.
+!!! tip
+    This function is not type stable and should only be used if
+    performance is not a priority. To achieve optimized performance,
+    you need to manually construct a [`MosaicView`](@ref).
 
 # Examples
+
+The simplest usage is to `cat` two arrays of the same dimension.
+
+```julia-repl
+julia> A1 = fill(1, 3, 1)
+3×1 Array{Int64,2}:
+ 1
+ 1
+ 1
+
+julia> A2 = fill(2, 1, 3)
+1×3 Array{Int64,2}:
+ 2  2  2
+
+julia> mosaicview(A1, A2)
+6×3 MosaicView{Int64,4, ...}:
+ 0  1  0
+ 0  1  0
+ 0  1  0
+ 0  0  0
+ 2  2  2
+ 0  0  0
+
+julia> mosaicview(A1, A2; center=false)
+ 6×3 MosaicView{Int64,4, ...}:
+  1  0  0
+  1  0  0
+  1  0  0
+  2  2  2
+  0  0  0
+  0  0  0
+```
+
+Other keyword arguments can be useful to get a nice looking results.
 
 ```julia-repl
 julia> using MosaicViews
@@ -224,34 +260,6 @@ julia> mosaicview(A, fillvalue=-1, nrow=2, npad=1, rowmajor=true)
  -1  -1  -1  -1  -1  -1  -1  -1  -1  -1  -1
   4   4   4  -1   5   5   5  -1  -1  -1  -1
   4   4   4  -1   5   5   5  -1  -1  -1  -1
-```
-
-
-```julia-repl
-julia> A = [i*ones(Int, 2, 3) for i in 1:4]
-4-element Array{Array{Int64,2},1}:
- [1 1 1; 1 1 1]
- [2 2 2; 2 2 2]
- [3 3 3; 3 3 3]
- [4 4 4; 4 4 4]
-
-julia> mosaicview(A, nrow=3)
-6×6 MosaicView{Int64,4,...}:
-  1  1  1  4  4  4
-  1  1  1  4  4  4
-  2  2  2  0  0  0
-  2  2  2  0  0  0
-  3  3  3  0  0  0
-  3  3  3  0  0  0
-
-julia> mosaicview(A..., nrow=3)
-6×6 MosaicView{Int64,4,...}:
-  1  1  1  4  4  4
-  1  1  1  4  4  4
-  2  2  2  0  0  0
-  2  2  2  0  0  0
-  3  3  3  0  0  0
-  3  3  3  0  0  0
 ```
 """
 function mosaicview(A::AbstractArray{T,3};
@@ -330,6 +338,7 @@ function mosaicview(As::AbstractVector{T};
                     center=true,
                     kwargs...) where {T <: AbstractArray}
     length(As) == 0 && throw(ArgumentError("The given vector should not be empty"))
+    length(unique(ndims.(As))) != 1 && throw(ArgumentError("All arrays should have the same dimension"))
     N = ndims(first(As))
     mosaicview(_padded_cat(As; center=center, fillvalue=fillvalue, dims=max(3, N+1));
                fillvalue=fillvalue, kwargs...)
@@ -339,6 +348,8 @@ function mosaicview(As::Tuple;
                     fillvalue=zero(eltype(first(As))),
                     center=true,
                     kwargs...)
+    length(As) == 0 && throw(ArgumentError("The given tuple should not be empty"))
+    length(unique(ndims.(As))) != 1 && throw(ArgumentError("All arrays should have the same dimension"))
     N = ndims(first(As))
     mosaicview(_padded_cat(As; center=center, fillvalue=fillvalue, dims=max(3, N+1));
                fillvalue=fillvalue, kwargs...)
