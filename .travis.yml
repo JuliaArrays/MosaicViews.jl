@@ -13,12 +13,6 @@ notifications:
 git:
   depth: 99999999
 
-## uncomment the following lines to allow failures on nightly julia
-## (tests will run but not make your overall status red)
-matrix:
-  allow_failures:
-    - julia: nightly
-
 ## uncomment and modify the following lines to manually install system packages
 #addons:
 #  apt: # apt-get for linux
@@ -27,15 +21,14 @@ matrix:
 #before_script: # homebrew for mac
 #  - if [ $TRAVIS_OS_NAME = osx ]; then brew install gcc; fi
 
-#jobs:
-#  include:
-#    - stage: deploy
-#      julia: 1.0
-#      os: linux
-#      script:
-#        - julia -e 'import Pkg; Pkg.clone(pwd()); Pkg.build("MosaicViews")'
-#        - julia -e 'import Pkg; Pkg.add("Documenter")'
-#        - julia -e 'import MosaicViews; ENV["DOCUMENTER_DEBUG"] = "true"; include(joinpath("docs","make.jl"))'
+jobs:
+ allow_failures:
+   - julia: nightly
+ include:
+   - stage: downstream packages
+     script:
+       - julia --project=. --color=yes -e 'using Pkg; Pkg.instantiate()'
+       - julia --project=. --color=yes -e 'using Pkg; Pkg.add("ImageCore"); Pkg.test("ImageCore")'
 
 
 after_success:
