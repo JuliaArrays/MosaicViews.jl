@@ -323,6 +323,19 @@ end
     @test_throws ArgumentError mosaicview(ones(2), ones(1, 2))
     @test_throws ArgumentError mosaicview((ones(2), ones(1, 2)))
     @test_throws ArgumentError mosaicview([ones(2), ones(1, 2)])
+
+    @testset "filltype" begin
+        # always a concrete type
+        A = mosaicview(rand(N0f8, 4, 4), rand(Float64, 4, 4), rand(Float32, 4, 4))
+        @test eltype(A) == Float64
+
+        A = mosaicview(Any[1 2 3; 4 5 6], rand(Float32, 4, 4))
+        @test eltype(A) == Float32
+        A = mosaicview(rand(Float32, 4, 4), Any[1 2 3; 4 5 6])
+        @test eltype(A) == Float32
+        A = mosaicview(rand(Float64, 4, 4), Union{Missing, Float32}[1 2 3; 4 5 6])
+        @test eltype(A) == Float32
+    end
 end
 
 
