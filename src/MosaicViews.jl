@@ -78,16 +78,16 @@ function MosaicView(A::AbstractArray{T,N}) where {T,N}
     MosaicView{T,N}(A, dims)
 end
 
-Base.parent(mv::MosaicView) = mv.parent
-Base.size(mv::MosaicView) = mv.dims
+Base.parent(mva::MosaicView) = mva.parent
+Base.size(mva::MosaicView) = mva.dims
 
 # fallback for 1d/2d case
-@inline Base.getindex(mv::MosaicView, ind::Int...) = mv.parent[ind...]
+@inline Base.getindex(mva::MosaicView, ind::Int...) = mva.parent[ind...]
 
-@inline function Base.getindex(mv::MosaicView{T,3,A}, i::Int, j::Int) where {T,A}
-    @boundscheck checkbounds(mv, i, j)
-    pdims = mv.pdims
-    parent = mv.parent
+@inline function Base.getindex(mva::MosaicView{T,3,A}, i::Int, j::Int) where {T,A}
+    @boundscheck checkbounds(mva, i, j)
+    pdims = mva.pdims
+    parent = mva.parent
     idx1 = (i-1) % pdims[1] + 1
     idx2 = (j-1) % pdims[2] + 1
     idx3 = (i-1) ÷ pdims[1] + 1
@@ -95,10 +95,10 @@ Base.size(mv::MosaicView) = mv.dims
     res
 end
 
-@inline function Base.getindex(mv::MosaicView{T,4,A}, i::Int, j::Int) where {T,A}
-    @boundscheck checkbounds(mv, i, j)
-    pdims = mv.pdims
-    parent = mv.parent
+@inline function Base.getindex(mva::MosaicView{T,4,A}, i::Int, j::Int) where {T,A}
+    @boundscheck checkbounds(mva, i, j)
+    pdims = mva.pdims
+    parent = mva.parent
     idx1 = (i-1) % pdims[1] + 1
     idx2 = (j-1) % pdims[2] + 1
     idx3 = (i-1) ÷ pdims[1] + 1

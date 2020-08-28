@@ -27,8 +27,8 @@ jobs:
  include:
    - stage: downstream packages
      script:
-       - julia --project=. --color=yes -e 'using Pkg; Pkg.instantiate()'
-       - julia --project=. --color=yes -e 'using Pkg; Pkg.add("ImageCore"); Pkg.test("ImageCore")'
+       - julia --color=yes -e 'using Pkg; Pkg.develop(path=pwd())'
+       - julia --color=yes -e 'using Pkg; Pkg.add("ImageCore"); Pkg.test("ImageCore")'
 
 
 after_success:
