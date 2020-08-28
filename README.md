@@ -16,7 +16,8 @@ When comparing and showing multiple images, `cat`/`hcat`/`vcat` can be helpful i
 sizes and colorants are the same. But if not, you'll need `mosaicview` for this purpose.
 
 ```julia
-julia> using MosaicViews, ImageShow, TestImages
+# ImageCore reexports MosaicViews with some glue codes for images
+julia> using ImageCore, ImageShow, TestImages, ColorVectorSpace
 
 julia> lena = testimage("lena") # 256*256 RGB image
 
