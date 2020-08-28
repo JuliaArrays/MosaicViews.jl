@@ -2,6 +2,7 @@ module MosaicViews
 
 using PaddedViews
 using OffsetArrays
+using MappedArrays: of_eltype
 
 export
 
@@ -296,7 +297,7 @@ function mosaicview(A::AbstractArray{T,3};
     # dimensions according to npad. think of this as border
     # between tiles (useful for images)
     pad_dims = (size(A,1) + npad, size(A,2) + npad, ntile_ceil)
-    A_pad = PaddedView(T(fillvalue), A, pad_dims)
+    A_pad = PaddedView(convert(T, fillvalue), A, pad_dims)
     # next we reshape the image such that it reflects the
     # specified nrow and ncol
     A_new = if !rowmajor
@@ -334,7 +335,7 @@ end
 mosaicview(As::AbstractArray...; kwargs...) = mosaicview(As; kwargs...)
 
 function mosaicview(As::AbstractVector{T};
-                    fillvalue=zero(eltype(first(As))),
+                    fillvalue=zero(_filltype(As)),
                     center=true,
                     kwargs...) where {T <: AbstractArray}
     length(As) == 0 && throw(ArgumentError("The given vector should not be empty"))
@@ -345,7 +346,7 @@ function mosaicview(As::AbstractVector{T};
 end
 
 function mosaicview(As::Tuple;
-                    fillvalue=zero(eltype(first(As))),
+                    fillvalue=zero(_filltype(As)),
                     center=true,
                     kwargs...)
     length(As) == 0 && throw(ArgumentError("The given tuple should not be empty"))
@@ -364,25 +365,33 @@ function _padded_cat(imgs; center, fillvalue, dims)
         msg *= "\nyou might want to manually `cat` them into one large array first."
         @warn msg
     end
+    T = _filltype(imgs)
     has_offsets = any(Base.has_offset_axes.(imgs))
     if !has_offsets && length(unique(map(axes, imgs))) == 1
-        return cat(imgs...; dims=dims)
+        return of_eltype(T, cat(imgs...; dims=dims))
     else
         if !has_offsets && !center
             # in this case the index of PaddedView starts from 1
             # hence we can directly pass them into `cat`
-            cat(paddedviews(fillvalue, imgs...)...; dims=dims)
+            return of_eltype(T, cat(paddedviews(fillvalue, imgs...)...; dims=dims))
         else
             # TODO: it's unidentified but this version allocates more memory
             #       and become slower (~1.5X) than a direct `cat`
             pad_fn = center ? sym_paddedviews : paddedviews
-            reduce(pad_fn(fillvalue, imgs...)) do x, y
+            return of_eltype(T, reduce(pad_fn(fillvalue, imgs...)) do x, y
                 x = OffsetArray(x, 1 .- first.(axes(x)))
                 y = OffsetArray(y, 1 .- first.(axes(y)))
                 cat(x, y; dims=dims)
-            end
+            end)
         end
     end
+end
+
+function _filltype(As)
+    Ts = (typeof.(first.(As))..., eltype.(typeof(As).types)...)
+    C = foldl(PaddedViews.filltype, filter(x-> x!== Any, Ts))
+    T = promote_type(eltype.(Ts)...) # eltype(eltype(RGB{Float32})) == Float32
+    isconcretetype(T) ? PaddedViews.filltype(C, T) : C
 end
 
 ### compat
