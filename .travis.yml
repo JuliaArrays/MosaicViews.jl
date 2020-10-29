@@ -26,6 +26,7 @@ jobs:
    - julia: nightly
  include:
    - stage: downstream packages
+     julia: 1
      script:
        - julia --color=yes -e 'using Pkg; Pkg.develop(path=pwd())'
        - julia --color=yes -e 'using Pkg; Pkg.add("ImageCore"); Pkg.test("ImageCore")'
