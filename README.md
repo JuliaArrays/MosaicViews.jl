@@ -19,11 +19,11 @@ sizes and colorants are the same. But if not, you'll need `mosaicview` for this 
 # ImageCore reexports MosaicViews with some glue codes for images
 julia> using ImageCore, ImageShow, TestImages, ColorVectorSpace
 
-julia> lena = testimage("lena") # 256*256 RGB image
+julia> toucan = testimage("toucan") # 150×162 RGBA image
 
-julia> cameraman = testimage("cameraman") # 512*512 Gray image
+julia> moon = testimage("moon") # 256×256 Gray image
 
-julia> mosaicview(lena, cameraman; nrow=1)
+julia> mosaicview(toucan, moon; nrow=1)
 ```
 
 ![compare-images](https://user-images.githubusercontent.com/8684355/76200526-c0be4700-622c-11ea-9d8f-03e22bc39be8.png)
