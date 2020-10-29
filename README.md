@@ -26,7 +26,7 @@ julia> moon = testimage("moon") # 256×256 Gray image
 julia> mosaicview(toucan, moon; nrow=1)
 ```
 
-![compare-images](https://user-images.githubusercontent.com/8684355/76200526-c0be4700-622c-11ea-9d8f-03e22bc39be8.png)
+![compare-images](https://user-images.githubusercontent.com/1525481/97542758-4b5ade80-1995-11eb-87cc-5fd2b0ba23fc.png)
 
 ### Get a preview of dataset
 
