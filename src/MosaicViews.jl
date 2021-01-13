@@ -339,7 +339,8 @@ function mosaicview(As::AbstractVector{T};
                     center=true,
                     kwargs...) where {T <: AbstractArray}
     length(As) == 0 && throw(ArgumentError("The given vector should not be empty"))
-    length(unique(ndims.(As))) != 1 && throw(ArgumentError("All arrays should have the same dimension"))
+    nd = ndims(As[1])
+    all(A->ndims(A)==nd, As) || throw(ArgumentError("All arrays should have the same dimension"))
     N = ndims(first(As))
     mosaicview(_padded_cat(As; center=center, fillvalue=fillvalue, dims=max(3, N+1));
                fillvalue=fillvalue, kwargs...)
@@ -350,7 +351,8 @@ function mosaicview(As::Tuple;
                     center=true,
                     kwargs...)
     length(As) == 0 && throw(ArgumentError("The given tuple should not be empty"))
-    length(unique(ndims.(As))) != 1 && throw(ArgumentError("All arrays should have the same dimension"))
+    nd = ndims(As[1])
+    all(A->ndims(A)==nd, As) || throw(ArgumentError("All arrays should have the same dimension"))
     N = ndims(first(As))
     mosaicview(_padded_cat(As; center=center, fillvalue=fillvalue, dims=max(3, N+1));
                fillvalue=fillvalue, kwargs...)
