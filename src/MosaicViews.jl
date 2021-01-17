@@ -310,7 +310,7 @@ function mosaicview(A::AbstractArray{T,3};
         # before top-to-bottom. (note the swap of "ncol" and "nrow")
         res_dims = (size(A_pad,1), size(A_pad,2), ncol, nrow)
         A_tp = reshape(A_pad, res_dims)
-        PermutedDimsArray(A_tp, (1, 2, 4, 3))
+        PermutedDimsArray{eltype(A_tp), 4, (1, 2, 4, 3), (1, 2, 4, 3), typeof(A_tp)}(A_tp)
     end
     # decrease size of the resulting MosaicView by npad to not have
     # a border on the right side and bottom side of the final mosaic.
@@ -332,17 +332,16 @@ function mosaicview(A::AbstractArray{T,N};
                nrow=nrow, ncol=ncol, kwargs...)
 end
 
-mosaicview(As::AbstractArray...; kwargs...) = mosaicview(As; kwargs...)
+@inline mosaicview(As::AbstractArray...; kwargs...) = mosaicview(As; kwargs...)
 
-function mosaicview(As::AbstractVector{T};
+function mosaicview(As::AbstractVector{<:AbstractArray};
                     fillvalue=zero(_filltype(As)),
                     center=true,
-                    kwargs...) where {T <: AbstractArray}
+                    kwargs...)
     length(As) == 0 && throw(ArgumentError("The given vector should not be empty"))
     nd = ndims(As[1])
     all(A->ndims(A)==nd, As) || throw(ArgumentError("All arrays should have the same dimension"))
-    N = ndims(first(As))
-    mosaicview(_padded_cat(As; center=center, fillvalue=fillvalue, dims=max(3, N+1));
+    mosaicview(_padded_cat(As; center=center, fillvalue=fillvalue, dims=valdim(first(As)));
                fillvalue=fillvalue, kwargs...)
 end
 
@@ -353,12 +352,21 @@ function mosaicview(As::Tuple;
     length(As) == 0 && throw(ArgumentError("The given tuple should not be empty"))
     nd = ndims(As[1])
     all(A->ndims(A)==nd, As) || throw(ArgumentError("All arrays should have the same dimension"))
-    N = ndims(first(As))
-    mosaicview(_padded_cat(As; center=center, fillvalue=fillvalue, dims=max(3, N+1));
+    mosaicview(_padded_cat(As; center=center, fillvalue=fillvalue, dims=valdim(first(As)));
                fillvalue=fillvalue, kwargs...)
 end
 
+valdim(A::AbstractArray{T,0}) where T     = Val(3)
+valdim(A::AbstractVector)                 = Val(3)
+valdim(A::AbstractMatrix)                 = Val(3)
+valdim(A::AbstractArray{T,N}) where {T,N} = Val(N+1)
+
 function _padded_cat(imgs; center, fillvalue, dims)
+    pv(imgs::AbstractVector{<:AbstractArray}) = PaddedViews.paddedviews_itr(fillvalue, imgs)
+    pv(imgs) = paddedviews(fillvalue, imgs...)
+    sym_pv(imgs::AbstractVector{<:AbstractArray}) = PaddedViews.sym_paddedviews_itr(fillvalue, imgs)
+    sym_pv(imgs) = sym_paddedviews(fillvalue, imgs...)
+
     # reduce(cat, imgs) would indeed make the whole pipeline more eagerly
     # and thus allocates more memory
     # TODO: inefficient when there're too many images, e.g., 512
@@ -368,39 +376,40 @@ function _padded_cat(imgs; center, fillvalue, dims)
         @warn msg
     end
     T = _filltype(imgs)
-    has_offsets = any(Base.has_offset_axes.(imgs))
-    if !has_offsets && length(unique(map(axes, imgs))) == 1
-        return of_eltype(T, cat(imgs...; dims=dims))
+    has_offsets = any(Base.has_offset_axes, imgs)
+    if !has_offsets && has_common_axes(imgs)
+        return Base._cat_t(dims, T, imgs...)
     else
         if !has_offsets && !center
             # in this case the index of PaddedView starts from 1
             # hence we can directly pass them into `cat`
-            return of_eltype(T, cat(paddedviews(fillvalue, imgs...)...; dims=dims))
+            return Base._cat_t(dims, T, pv(imgs)...)
         else
-            # TODO: it's unidentified but this version allocates more memory
-            #       and become slower (~1.5X) than a direct `cat`
-            pad_fn = center ? sym_paddedviews : paddedviews
-            return of_eltype(T, reduce(pad_fn(fillvalue, imgs...)) do x, y
-                x = OffsetArray(x, 1 .- first.(axes(x)))
-                y = OffsetArray(y, 1 .- first.(axes(y)))
-                cat(x, y; dims=dims)
-            end)
+            if center
+                return Base._cat_t(dims, T, map(OffsetArrays.no_offset_view, sym_pv(imgs))...)
+            end
+            return Base._cat_t(dims, T, map(OffsetArrays.no_offset_view, pv(imgs))...)
         end
     end
 end
 
+has_common_axes(imgs) = isempty(imgs) || all(isequal(axes(first(imgs))) ∘ axes, imgs)
+
+
 _gettype(A::AbstractArray{T}) where T = T === Any ? typeof(first(A)) : T
 
-# When the inputs are homogenous we can circumvent varargs despecialization
-function _filltype(As::AbstractVector{A}) where A<:AbstractArray{T} where T
-    (!@isdefined(T) || T === Any) && return invoke(_filltype, Tuple{Any}, As)
-    return PaddedViews.filltype(Bool, T)
-end
 # This uses Union{} as a sentinel eltype (all other types "beat" it),
 # and Bool as a near-neutral fill type.
 _filltype(As) = PaddedViews.filltype(Bool, _filltypeT(Union{}, As...))
 @inline _filltypeT(::Type{T}, A, tail...) where T = _filltypeT(promote_type_withcolor(T, _gettype(A)), tail...)
 _filltypeT(::Type{T}) where T = T
+
+# When the inputs are homogenous we can circumvent varargs despecialization
+# This also handles the case of empty `As` but concrete `T`.
+function _filltype(As::AbstractVector{A}) where A<:AbstractArray{T} where T
+    (!@isdefined(T) || T === Any) && return invoke(_filltype, Tuple{Any}, As)
+    return PaddedViews.filltype(Bool, T)
+end
 
 promote_type_withcolor(::Type{T}, ::Type{S}) where {T, S} = promote_type(T, S)
 promote_type_withcolor(::Type{T}, ::Type{Union{}}) where T = T
@@ -411,8 +420,9 @@ promote_type_withcolor(::Type{Union{}}, ::Type{Union{}}) = Union{}
 if VERSION < v"1.2"
     require_one_based_indexing(A...) = !Base.has_offset_axes(A...) || throw(ArgumentError("offset arrays are not supported but got an array with index other than 1"))
 else
-    require_one_based_indexing = Base.require_one_based_indexing
+    const require_one_based_indexing = Base.require_one_based_indexing
 end
+
 ### deprecations
 
 @deprecate mosaicview(A::AbstractArray, fillvalue; kwargs...) mosaicview(A; fillvalue=fillvalue, kwargs...)

@@ -3,6 +3,26 @@ using Test
 using ImageCore, ColorVectorSpace
 using OffsetArrays
 
+# Because of the difference in axes types between paddedviews (Base.OneTo) and
+# sym_paddedviews (UnitRange), the return type of `mosaicview` isn't inferrable to a
+# concrete type. But it is inferrable to a Union{A,B} where both A and B are concrete.
+# While `@inferred(mosaicview(A, B))` would therefore fail, this is a close substitute.
+function _checkinferred_mosaicview(V, A; kwargs...)
+    RTs = Base.return_types(mosaicview, map(typeof, A))
+    @test length(RTs) == 1
+    RT = RTs[1]
+    @test isconcretetype(RT) || (isa(RT, Union) && isconcretetype(RT.a) && isconcretetype(RT.b))
+    return V
+end
+function checkinferred_mosaicview(A...; kwargs...)
+    V = mosaicview(A...; kwargs...)
+    return _checkinferred_mosaicview(V, A)
+end
+function checkinferred_mosaicview(As::AbstractVector{<:AbstractArray}; kwargs...)
+    V = mosaicview(As; kwargs...)
+    return _checkinferred_mosaicview(V, (As...,); kwargs...)
+end
+
 @testset "MosaicView" begin
     @test_throws ArgumentError MosaicView(rand(2,2,2,2,2))
 
@@ -88,13 +108,13 @@ end
     @testset "1D input" begin
         A1 = [1, 2, 3]
         A2 = [4, 5, 6]
-        mva = mosaicview(A1, A2)
+        mva = checkinferred_mosaicview(A1, A2)
         @test typeof(mva) <: MosaicView
         @test eltype(mva) == eltype(A1)
         @test size(mva) == (6, 1)
         @test @inferred(getindex(mva, 1, 1)) == 1
 
-        @test mosaicview(A1, A2; nrow=1) == [1 4; 2 5; 3 6]
+        @test checkinferred_mosaicview(A1, A2; nrow=1) == [1 4; 2 5; 3 6]
         @test mosaicview(A1, A2; nrow=2) == reshape([1, 2, 3, 4, 5, 6], (6, 1))
         @test mosaicview(A1, A2) == mosaicview([A1, A2]) == mosaicview((A1, A2))
     end
@@ -108,7 +128,7 @@ end
             @test_throws ArgumentError mosaicview(B, ncol=0)
             @test_throws ArgumentError mosaicview(B, nrow=1, ncol=1)
 
-            mva = mosaicview(B)
+            mva = checkinferred_mosaicview(B)
             @test mosaicview(B...) == mva
             @test typeof(mva) <: MosaicView
             @test eltype(mva) == eltype(eltype(B))
@@ -125,7 +145,7 @@ end
                 4  4  4
             ]
 
-            mva = mosaicview(B, nrow=2)
+            mva = checkinferred_mosaicview(B, nrow=2)
             @test typeof(mva) <: MosaicView
             @test eltype(mva) == eltype(eltype(B))
             @test size(mva) == (4, 6)
@@ -143,7 +163,7 @@ end
 
         A1 = reshape([1 2 3], (1, 3))
         A2 = reshape([4;5;6], (3, 1))
-        @test mosaicview([A1, A2]; center=false) == [
+        @test checkinferred_mosaicview([A1, A2]; center=false) == [
          1 2 3;
          0 0 0;
          0 0 0;
@@ -164,7 +184,7 @@ end
         # same size but different axes
         A1 = fill(1, 1:2, 1:2)
         A2 = fill(2, 2:3, 2:3)
-        @test collect(mosaicview(A1, A2; center=true)) == [
+        @test collect(checkinferred_mosaicview(A1, A2; center=true)) == [
             1 1 0;
             1 1 0;
             0 0 0;
@@ -192,7 +212,7 @@ end
         @test_throws ArgumentError mosaicview(B, nrow=1, ncol=1)
         @test mosaicview(B, center=2) == mosaicview(B) # no op
 
-        mva = mosaicview(B)
+        mva = checkinferred_mosaicview(B)
         @test typeof(mva) <: MosaicView
         @test eltype(mva) == eltype(B)
         @test size(mva) == (8, 3)
@@ -207,7 +227,7 @@ end
             5  5  5
             5  5  5
         ]
-        mva = mosaicview(B, nrow=2)
+        mva = checkinferred_mosaicview(B, nrow=2)
         @test mva == MosaicView(A)
         @test typeof(mva) != typeof(MosaicView(A))
         @test parent(parent(mva)).data == B
@@ -326,13 +346,14 @@ end
 
     @testset "filltype" begin
         # always a concrete type
-        A = mosaicview(rand(N0f8, 4, 4), rand(Float64, 4, 4), rand(Float32, 4, 4))
+        A = checkinferred_mosaicview(rand(N0f8, 4, 4), rand(Float64, 4, 4), rand(Float32, 4, 4))
         @test eltype(A) == Float64
 
         A = mosaicview(Any[1 2 3; 4 5 6], rand(Float32, 4, 4))
         @test eltype(A) == Float32
         A = mosaicview(rand(Float32, 4, 4), Any[1 2 3; 4 5 6])
         @test eltype(A) == Float32
+        A = checkinferred_mosaicview(rand(Float64, 4, 4), Union{Missing, Float32}[1 2 3; 4 5 6])
         @test eltype(A) == Union{Missing, Float64}
     end
 end
