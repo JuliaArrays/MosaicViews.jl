@@ -389,12 +389,23 @@ function _padded_cat(imgs; center, fillvalue, dims)
     end
 end
 
-function _filltype(As)
-    Ts = (typeof.(first.(As))..., eltype.(typeof(As).types)...)
-    C = foldl(PaddedViews.filltype, filter(x-> x!== Any, Ts))
-    T = promote_type(eltype.(Ts)...) # eltype(eltype(RGB{Float32})) == Float32
-    isconcretetype(T) ? PaddedViews.filltype(C, T) : C
+_gettype(A::AbstractArray{T}) where T = T === Any ? typeof(first(A)) : T
+
+# When the inputs are homogenous we can circumvent varargs despecialization
+function _filltype(As::AbstractVector{A}) where A<:AbstractArray{T} where T
+    (!@isdefined(T) || T === Any) && return invoke(_filltype, Tuple{Any}, As)
+    return PaddedViews.filltype(Bool, T)
 end
+# This uses Union{} as a sentinel eltype (all other types "beat" it),
+# and Bool as a near-neutral fill type.
+_filltype(As) = PaddedViews.filltype(Bool, _filltypeT(Union{}, As...))
+@inline _filltypeT(::Type{T}, A, tail...) where T = _filltypeT(promote_type_withcolor(T, _gettype(A)), tail...)
+_filltypeT(::Type{T}) where T = T
+
+promote_type_withcolor(::Type{T}, ::Type{S}) where {T, S} = promote_type(T, S)
+promote_type_withcolor(::Type{T}, ::Type{Union{}}) where T = T
+promote_type_withcolor(::Type{Union{}}, ::Type{S}) where S = S
+promote_type_withcolor(::Type{Union{}}, ::Type{Union{}}) = Union{}
 
 ### compat
 if VERSION < v"1.2"

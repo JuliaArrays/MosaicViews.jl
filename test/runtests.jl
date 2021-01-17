@@ -333,8 +333,7 @@ end
         @test eltype(A) == Float32
         A = mosaicview(rand(Float32, 4, 4), Any[1 2 3; 4 5 6])
         @test eltype(A) == Float32
-        A = mosaicview(rand(Float64, 4, 4), Union{Missing, Float32}[1 2 3; 4 5 6])
-        @test eltype(A) == Float32
+        @test eltype(A) == Union{Missing, Float64}
     end
 end
 
