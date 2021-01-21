@@ -40,13 +40,14 @@ jobs:
             ${{ runner.os }}-
       - uses: julia-actions/julia-buildpkg@v1
       - name: Install ImageCore
-        shell: julia --project=. {0}
+        shell: julia {0}
         run: |
           using Pkg
+          Pkg.develop(PackageSpec(; path=pwd()))
           Pkg.add(PackageSpec(; name="ImageCore", rev="master"))
       - uses: julia-actions/julia-runtest@v1
       - name: Test ImageCore
-        shell: julia --project=. {0}
+        shell: julia {0}
         run: |
           using Pkg
           Pkg.test("ImageCore")
