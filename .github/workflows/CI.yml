@@ -44,7 +44,8 @@ jobs:
         run: |
           using Pkg
           Pkg.develop(PackageSpec(; path=pwd()))
-          Pkg.add(PackageSpec(; name="ImageCore", rev="master"))
+          Pkg.add(PackageSpec(; name="FFTW"))          # needed only on Julia 1.0
+          Pkg.add(PackageSpec(; name="ImageCore"))
       - uses: julia-actions/julia-runtest@v1
       - name: Test ImageCore
         shell: julia {0}
