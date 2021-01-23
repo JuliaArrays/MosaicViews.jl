@@ -336,24 +336,36 @@ end
 
 function mosaicview(As::AbstractVector{<:AbstractArray};
                     fillvalue=zero(_filltype(As)),
-                    center=true,
+                    center::Bool=true,
                     kwargs...)
     length(As) == 0 && throw(ArgumentError("The given vector should not be empty"))
     nd = ndims(As[1])
     all(A->ndims(A)==nd, As) || throw(ArgumentError("All arrays should have the same dimension"))
+    T = _filltype(As)
+    fillvalue = convert(T, fillvalue)
     mosaicview(_padded_cat(As; center=center, fillvalue=fillvalue, dims=valdim(first(As)));
                fillvalue=fillvalue, kwargs...)
 end
 
 function mosaicview(As::Tuple;
                     fillvalue=zero(_filltype(As)),
-                    center=true,
+                    center::Bool=true,
                     kwargs...)
     length(As) == 0 && throw(ArgumentError("The given tuple should not be empty"))
     nd = ndims(As[1])
     all(A->ndims(A)==nd, As) || throw(ArgumentError("All arrays should have the same dimension"))
-    mosaicview(_padded_cat(As; center=center, fillvalue=fillvalue, dims=valdim(first(As)));
-               fillvalue=fillvalue, kwargs...)
+    T = _filltype(As)
+    fillvalue = convert(T, fillvalue)
+    vd = valdim(first(As))
+    if isconcretetype(eltype(As))
+        mosaicview(_padded_cat(As; center=center, fillvalue=fillvalue, dims=vd);
+                fillvalue=fillvalue, kwargs...)
+    else
+        # Reduce latency by despecializing calls with heterogeneous array types
+        Mtyp = arraytype(T,vd)
+        mosaicview(_padded_cat(Base.inferencebarrier(As); center=center, fillvalue=Base.inferencebarrier(fillvalue), dims=Base.inferencebarrier(vd))::Mtyp;
+                fillvalue=fillvalue, kwargs...)
+    end
 end
 
 valdim(A::AbstractArray{T,0}) where T     = Val(3)
@@ -361,7 +373,10 @@ valdim(A::AbstractVector)                 = Val(3)
 valdim(A::AbstractMatrix)                 = Val(3)
 valdim(A::AbstractArray{T,N}) where {T,N} = Val(N+1)
 
-function _padded_cat(imgs; center, fillvalue, dims)
+arraytype(::Type{T}, ::Val{N}) where {T,N} = Array{T,N}
+
+function _padded_cat(imgs; center::Bool, fillvalue, dims)
+    @nospecialize # because this is frequently called with heterogeneous inputs, we @nospecialize it
     pv(imgs::AbstractVector{<:AbstractArray}) = PaddedViews.paddedviews_itr(fillvalue, imgs)
     pv(imgs) = paddedviews(fillvalue, imgs...)
     sym_pv(imgs::AbstractVector{<:AbstractArray}) = PaddedViews.sym_paddedviews_itr(fillvalue, imgs)
