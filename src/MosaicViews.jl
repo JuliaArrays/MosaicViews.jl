@@ -377,10 +377,10 @@ arraytype(::Type{T}, ::Val{N}) where {T,N} = Array{T,N}
 
 function _padded_cat(imgs; center::Bool, fillvalue, dims)
     @nospecialize # because this is frequently called with heterogeneous inputs, we @nospecialize it
-    pv(imgs::AbstractVector{<:AbstractArray}) = PaddedViews.paddedviews_itr(fillvalue, imgs)
-    pv(imgs) = paddedviews(fillvalue, imgs...)
-    sym_pv(imgs::AbstractVector{<:AbstractArray}) = PaddedViews.sym_paddedviews_itr(fillvalue, imgs)
-    sym_pv(imgs) = sym_paddedviews(fillvalue, imgs...)
+    pv(@nospecialize(imgs::AbstractVector{<:AbstractArray})) = PaddedViews.paddedviews_itr(fillvalue, imgs)
+    pv(@nospecialize(imgs)) = paddedviews(fillvalue, imgs...)
+    sym_pv(@nospecialize(imgs::AbstractVector{<:AbstractArray})) = PaddedViews.sym_paddedviews_itr(fillvalue, imgs)
+    sym_pv(@nospecialize(imgs)) = sym_paddedviews(fillvalue, imgs...)
 
     # reduce(cat, imgs) would indeed make the whole pipeline more eagerly
     # and thus allocates more memory
@@ -391,7 +391,11 @@ function _padded_cat(imgs; center::Bool, fillvalue, dims)
         @warn msg
     end
     T = _filltype(imgs)
-    has_offsets = any(Base.has_offset_axes, imgs)
+    has_offsets = false
+    for img in imgs
+        has_offsets = Base.has_offset_axes(img)
+        has_offsets && break
+    end
     if !has_offsets && has_common_axes(imgs)
         return Base._cat_t(dims, T, imgs...)
     else
@@ -408,7 +412,7 @@ function _padded_cat(imgs; center::Bool, fillvalue, dims)
     end
 end
 
-has_common_axes(imgs) = isempty(imgs) || all(isequal(axes(first(imgs))) ∘ axes, imgs)
+has_common_axes(@nospecialize(imgs)) = isempty(imgs) || all(isequal(axes(first(imgs))) ∘ axes, imgs)
 
 
 _gettype(A::AbstractArray{T}) where T = T === Any ? typeof(first(A)) : T
