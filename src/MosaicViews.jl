@@ -391,11 +391,7 @@ function _padded_cat(imgs; center::Bool, fillvalue, dims)
         @warn msg
     end
     T = _filltype(imgs)
-    has_offsets = false
-    for img in imgs
-        has_offsets = Base.has_offset_axes(img)
-        has_offsets && break
-    end
+    has_offsets = any(Base.has_offset_axes, imgs)
     if !has_offsets && has_common_axes(imgs)
         return Base._cat_t(dims, T, imgs...)
     else
@@ -415,25 +411,50 @@ end
 has_common_axes(@nospecialize(imgs)) = isempty(imgs) || all(isequal(axes(first(imgs))) ∘ axes, imgs)
 
 
-_gettype(A::AbstractArray{T}) where T = T === Any ? typeof(first(A)) : T
-
 # This uses Union{} as a sentinel eltype (all other types "beat" it),
 # and Bool as a near-neutral fill type.
 _filltype(As) = PaddedViews.filltype(Bool, _filltypeT(Union{}, As...))
-@inline _filltypeT(::Type{T}, A, tail...) where T = _filltypeT(promote_type_withcolor(T, _gettype(A)), tail...)
+
+@inline _filltypeT(::Type{T}, A, tail...) where T = _filltypeT(promote_wrapped_type(T, _gettype(A)), tail...)
 _filltypeT(::Type{T}) where T = T
 
 # When the inputs are homogenous we can circumvent varargs despecialization
 # This also handles the case of empty `As` but concrete `T`.
 function _filltype(As::AbstractVector{A}) where A<:AbstractArray{T} where T
-    (!@isdefined(T) || T === Any) && return invoke(_filltype, Tuple{Any}, As)
+    # (!@isdefined(T) || T === Any) && return invoke(_filltype, Tuple{Any}, As)
+    T === Any && return invoke(_filltype, Tuple{Any}, As)
     return PaddedViews.filltype(Bool, T)
 end
 
-promote_type_withcolor(::Type{T}, ::Type{S}) where {T, S} = promote_type(T, S)
-promote_type_withcolor(::Type{T}, ::Type{Union{}}) where T = T
-promote_type_withcolor(::Type{Union{}}, ::Type{S}) where S = S
-promote_type_withcolor(::Type{Union{}}, ::Type{Union{}}) = Union{}
+_gettype(A::AbstractArray{T}) where T = T === Any ? typeof(first(A)) : T
+
+"""
+    promote_wrapped_type(S, T)
+
+Similar to `promote_type`, except designed to be extensible to cases where you want to promote through a wrapper type.
+
+`promote_wrapped_type` is used by `_filltype` to compute the common element type for handling heterogeneous types when building the mosaic.
+It does not have the order-independence of `promote_type`, and you should extend it directly rather than via a `promote_rule`-like mechanism.
+
+# Example
+
+Suppose you have
+```
+struct MyWrapper{T}
+    x::T
+end
+```
+and you don't want to define `promote_type(MyWrapper{Int},Float32)` generally as anything other than `Any`,
+but for the purpose of building mosaics a `MyWrapper{Float32}` would be a valid common type.
+Then you could define
+
+```
+MosaicViews.promote_wrapped_type(::Type{MyWrapper{S}}, ::Type{MyWrapper{T}}) where {S,T} = MyWrapper{MosaicViews.promote_wrapped_type(S,T)}
+MosaicViews.promote_wrapped_type(::Type{MyWrapper{S}}, ::Type{T}) where {S,T} = MyWrapper{MosaicViews.promote_wrapped_type(S,T)}
+MosaicViews.promote_wrapped_type(::Type{S}, ::Type{MyWrapper{T}}) where {S,T} = MosaicViews.promote_wrapped_type(MyWrapper{T}, S)
+```
+"""
+promote_wrapped_type(::Type{S}, ::Type{T}) where {S, T} = promote_type(S, T)
 
 ### compat
 if VERSION < v"1.2"
