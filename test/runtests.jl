@@ -7,20 +7,20 @@ using OffsetArrays
 # sym_paddedviews (UnitRange), the return type of `mosaicview` isn't inferrable to a
 # concrete type. But it is inferrable to a Union{A,B} where both A and B are concrete.
 # While `@inferred(mosaicview(A, B))` would therefore fail, this is a close substitute.
-function _checkinferred_mosaicview(V, A; kwargs...)
-    RTs = Base.return_types(mosaicview, map(typeof, A))
+function _checkinferred_mosaic(V, A; kwargs...)
+    RTs = Base.return_types(mosaic, map(typeof, A))
     @test length(RTs) == 1
     RT = RTs[1]
     @test isconcretetype(RT) || (isa(RT, Union) && isconcretetype(RT.a) && isconcretetype(RT.b))
     return V
 end
-function checkinferred_mosaicview(A...; kwargs...)
-    V = mosaicview(A...; kwargs...)
-    return _checkinferred_mosaicview(V, A)
+function checkinferred_mosaic(A...; kwargs...)
+    V = mosaic(A...; kwargs...)
+    return _checkinferred_mosaic(V, A)
 end
-function checkinferred_mosaicview(As::AbstractVector{<:AbstractArray}; kwargs...)
-    V = mosaicview(As; kwargs...)
-    return _checkinferred_mosaicview(V, (As...,); kwargs...)
+function checkinferred_mosaic(As::AbstractVector{<:AbstractArray}; kwargs...)
+    V = mosaic(As; kwargs...)
+    return _checkinferred_mosaic(V, (As...,); kwargs...)
 end
 
 @testset "MosaicView" begin
@@ -108,15 +108,15 @@ end
     @testset "1D input" begin
         A1 = [1, 2, 3]
         A2 = [4, 5, 6]
-        mva = checkinferred_mosaicview(A1, A2)
+        mva = checkinferred_mosaic(A1, A2)
         @test typeof(mva) <: MosaicView
         @test eltype(mva) == eltype(A1)
         @test size(mva) == (6, 1)
         @test @inferred(getindex(mva, 1, 1)) == 1
 
-        @test checkinferred_mosaicview(A1, A2; nrow=1) == [1 4; 2 5; 3 6]
-        @test mosaicview(A1, A2; nrow=2) == reshape([1, 2, 3, 4, 5, 6], (6, 1))
-        @test mosaicview(A1, A2) == mosaicview([A1, A2]) == mosaicview((A1, A2))
+        @test checkinferred_mosaic(A1, A2; nrow=1) == [1 4; 2 5; 3 6]
+        @test mosaic(A1, A2; nrow=2) == reshape([1, 2, 3, 4, 5, 6], (6, 1))
+        @test mosaic(A1, A2) == mosaic([A1, A2]) == mosaic((A1, A2))
     end
 
     @testset "2D input" begin
@@ -124,12 +124,12 @@ end
         Ao = [i*ones(Int, 0i:1, 0:2) for i in 1:4]
 
         for B in (A, tuple(A...), Ao)
-            @test_throws ArgumentError mosaicview(B, nrow=0)
-            @test_throws ArgumentError mosaicview(B, ncol=0)
-            @test_throws ArgumentError mosaicview(B, nrow=1, ncol=1)
+            @test_throws ArgumentError mosaic(B, nrow=0)
+            @test_throws ArgumentError mosaic(B, ncol=0)
+            @test_throws ArgumentError mosaic(B, nrow=1, ncol=1)
 
-            mva = checkinferred_mosaicview(B)
-            @test mosaicview(B...) == mva
+            mva = checkinferred_mosaic(B)
+            @test mosaic(B...) == mva
             @test typeof(mva) <: MosaicView
             @test eltype(mva) == eltype(eltype(B))
             @test size(mva) == (8, 3)
@@ -145,7 +145,7 @@ end
                 4  4  4
             ]
 
-            mva = checkinferred_mosaicview(B, nrow=2)
+            mva = checkinferred_mosaic(B, nrow=2)
             @test typeof(mva) <: MosaicView
             @test eltype(mva) == eltype(eltype(B))
             @test size(mva) == (4, 6)
@@ -157,13 +157,13 @@ end
             ]
         end
 
-        @test mosaicview(A...) == mosaicview(A)
-        @test mosaicview(A..., nrow=2) == mosaicview(A, nrow=2)
-        @test mosaicview(A..., nrow=2, rowmajor=true) == mosaicview(A, nrow=2, rowmajor=true)
+        @test mosaic(A...) == mosaic(A)
+        @test mosaic(A..., nrow=2) == mosaic(A, nrow=2)
+        @test mosaic(A..., nrow=2, rowmajor=true) == mosaic(A, nrow=2, rowmajor=true)
 
         A1 = reshape([1 2 3], (1, 3))
         A2 = reshape([4;5;6], (3, 1))
-        @test checkinferred_mosaicview([A1, A2]; center=false) == [
+        @test checkinferred_mosaic([A1, A2]; center=false) == [
          1 2 3;
          0 0 0;
          0 0 0;
@@ -171,7 +171,7 @@ end
          5 0 0;
          6 0 0
         ]
-        @test mosaicview([A1, A2]; center=true) == [
+        @test mosaic([A1, A2]; center=true) == [
          0 0 0;
          1 2 3;
          0 0 0;
@@ -179,12 +179,12 @@ end
          0 5 0;
          0 6 0
         ]
-        @test mosaicview([A1, A2]) == mosaicview([A1, A2]; center=true)
+        @test mosaic([A1, A2]) == mosaic([A1, A2]; center=true)
 
         # same size but different axes
         A1 = fill(1, 1:2, 1:2)
         A2 = fill(2, 2:3, 2:3)
-        @test collect(checkinferred_mosaicview(A1, A2; center=true)) == [
+        @test collect(checkinferred_mosaic(A1, A2; center=true)) == [
             1 1 0;
             1 1 0;
             0 0 0;
@@ -192,7 +192,7 @@ end
             2 2 0;
             0 0 0;
         ]
-        @test collect(mosaicview(A1, A2; center=false)) == [
+        @test collect(mosaic(A1, A2; center=false)) == [
             1 1 0;
             1 1 0;
             0 0 0;
@@ -210,9 +210,8 @@ end
         @test_throws ArgumentError mosaicview(B, nrow=0)
         @test_throws ArgumentError mosaicview(B, ncol=0)
         @test_throws ArgumentError mosaicview(B, nrow=1, ncol=1)
-        @test mosaicview(B, center=2) == mosaicview(B) # no op
 
-        mva = checkinferred_mosaicview(B)
+        mva = checkinferred_mosaic(B)
         @test typeof(mva) <: MosaicView
         @test eltype(mva) == eltype(B)
         @test size(mva) == (8, 3)
@@ -227,7 +226,7 @@ end
             5  5  5
             5  5  5
         ]
-        mva = checkinferred_mosaicview(B, nrow=2)
+        mva = checkinferred_mosaic(B, nrow=2)
         @test mva == MosaicView(A)
         @test typeof(mva) != typeof(MosaicView(A))
         @test parent(parent(mva)).data == B
@@ -235,9 +234,9 @@ end
         @test eltype(mva) == eltype(B)
         @test size(mva) == (4, 6)
 
-        @test mosaicview(B, B) == mosaicview(cat(B, B; dims=4))
-        @test mosaicview(B, B, nrow=2) == mosaicview(cat(B, B; dims=4), nrow=2)
-        @test mosaicview(B, B, nrow=2, rowmajor=true) == mosaicview(cat(B, B; dims=4), nrow=2, rowmajor=true)
+        @test mosaic(B, B) == mosaicview(cat(B, B; dims=4))
+        @test mosaic(B, B, nrow=2) == mosaicview(cat(B, B; dims=4), nrow=2)
+        @test mosaic(B, B, nrow=2, rowmajor=true) == mosaicview(cat(B, B; dims=4), nrow=2, rowmajor=true)
     end
 
     @testset "4D input" begin
@@ -245,7 +244,6 @@ end
         @test_throws ArgumentError mosaicview(A, nrow=0)
         @test_throws ArgumentError mosaicview(A, ncol=0)
         @test_throws ArgumentError mosaicview(A, nrow=1, ncol=1)
-        @test mosaicview(A, center=2) == mosaicview(A) # no op
 
         mva = mosaicview(A)
         @test mva == MosaicView(A)
@@ -317,9 +315,9 @@ end
              5   5   5  -1  -1  -1  -1  -1  -1  -1  -1
         ]
 
-        @test mosaicview(A, A) == mosaicview(cat(A, A; dims=5))
-        @test mosaicview(A, A, nrow=2) == mosaicview(cat(A, A; dims=4), nrow=2)
-        @test mosaicview(A, A, nrow=2, rowmajor=true) == mosaicview(cat(A, A; dims=4), nrow=2, rowmajor=true)
+        @test mosaic(A, A) == mosaicview(cat(A, A; dims=5))
+        @test mosaic(A, A, nrow=2) == mosaicview(cat(A, A; dims=4), nrow=2)
+        @test mosaic(A, A, nrow=2, rowmajor=true) == mosaicview(cat(A, A; dims=4), nrow=2, rowmajor=true)
     end
 
     @testset "Colorant Array" begin
@@ -335,25 +333,25 @@ end
         @test @inferred(getindex(mvaa, 3, 4)) == RGB(1,1,1)
 
         # this should work regardless they're of different size and color
-        @test_nowarn mosaicview(rand(RGB{Float32}, 4, 4),
-                                rand(Gray{N0f8}, 5, 5))
+        @test_nowarn mosaic(rand(RGB{Float32}, 4, 4),
+                            rand(Gray{N0f8}, 5, 5))
     end
 
     # all arrays should have the same dimension
-    @test_throws ArgumentError mosaicview(ones(2), ones(1, 2))
-    @test_throws ArgumentError mosaicview((ones(2), ones(1, 2)))
-    @test_throws ArgumentError mosaicview([ones(2), ones(1, 2)])
+    @test_throws ArgumentError mosaic(ones(2), ones(1, 2))
+    @test_throws ArgumentError mosaic((ones(2), ones(1, 2)))
+    @test_throws ArgumentError mosaic([ones(2), ones(1, 2)])
 
     @testset "filltype" begin
         # always a concrete type
-        A = checkinferred_mosaicview(rand(N0f8, 4, 4), rand(Float64, 4, 4), rand(Float32, 4, 4))
+        A = checkinferred_mosaic(rand(N0f8, 4, 4), rand(Float64, 4, 4), rand(Float32, 4, 4))
         @test eltype(A) == Float64
 
-        A = mosaicview(Any[1 2 3; 4 5 6], rand(Float32, 4, 4))
+        A = mosaic(Any[1 2 3; 4 5 6], rand(Float32, 4, 4))
         @test eltype(A) == Float32
-        A = mosaicview(rand(Float32, 4, 4), Any[1 2 3; 4 5 6])
+        A = mosaic(rand(Float32, 4, 4), Any[1 2 3; 4 5 6])
         @test eltype(A) == Float32
-        A = checkinferred_mosaicview(rand(Float64, 4, 4), Union{Missing, Float32}[1 2 3; 4 5 6])
+        A = checkinferred_mosaic(rand(Float64, 4, 4), Union{Missing, Float32}[1 2 3; 4 5 6])
         @test eltype(A) == Union{Missing, Float64}
     end
 end
@@ -361,8 +359,23 @@ end
 
 @testset "deprecations" begin
     @info "deprecations are expected"
+    # mosaicview -> mosaic deprecations
     A = [(k+1)*l-1 for i in 1:2, j in 1:3, k in 1:2, l in 1:2]
-    mva_old = mosaicview(A, -1.0, rowmajor=true, ncol=3, npad=1)
-    mva_new = mosaicview(A, fillvalue=-1.0, rowmajor=true, ncol=3, npad=1)
+    mva_old = mosaicview(A, A, rowmajor=true, ncol=3, npad=1)
+    mva_new = mosaic(A, A, rowmajor=true, ncol=3, npad=1)
     @test mva_old == mva_new
+    mva_old = mosaicview(A, A, A, rowmajor=true, ncol=3, npad=1)
+    mva_new = mosaic(A, A, A, rowmajor=true, ncol=3, npad=1)
+    @test mva_old == mva_new
+    mva_old = mosaicview([A, A], rowmajor=true, ncol=3, npad=1)
+    mva_new = mosaic([A, A], rowmajor=true, ncol=3, npad=1)
+    @test mva_old == mva_new
+    mva_old = mosaicview((A, A), rowmajor=true, ncol=3, npad=1)
+    mva_new = mosaic((A, A), rowmajor=true, ncol=3, npad=1)
+    @test mva_old == mva_new
+    # center keyword for `mosaicview` (still applies for `mosaic`)
+    A = [(k+1)*l-1 for i in 1:2, j in 1:3, k in 1:2, l in 1:2]
+    B = reshape(A, 2, 3, :)
+    @test mosaicview(B, center=2) == mosaicview(B) # no op
+    @test mosaicview(A, center=2) == mosaicview(A) # no op
 end

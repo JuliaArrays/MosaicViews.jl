@@ -7,7 +7,8 @@ using MappedArrays: of_eltype
 export
 
     MosaicView,
-    mosaicview
+    mosaicview,
+    mosaic
 
 """
     MosaicView(A::AbstractArray)
@@ -111,19 +112,15 @@ end
 """
     mosaicview(A::AbstractArray;
                [fillvalue=<zero unit>], [npad=0],
-               [nrow], [ncol], [rowmajor=false],
-               [center=true]) -> MosaicView
+               [nrow], [ncol], [rowmajor=false]) -> MosaicView
     mosaicview(As::AbstractArray...; kwargs...)
     mosaicview(As::Union{Tuple, AbstractVector}; kwargs...)
 
-Create a two dimensional "view" from array `A` or a list of arrays `As`.
+Create a two dimensional "view" from array `A`.
 
 The resulting [`MosaicView`](@ref) will display all the matrix
 slices of the first two dimensions of `A` arranged as a single
 large mosaic (in the form of a matrix).
-
-If multiple arrays in passed, they'll will be center-padded to a common
-size, and then be concatenated to create a higher dimensional array.
 
 # Arguments
 
@@ -152,10 +149,6 @@ image mosaic from a set of input images.
   arranged left-to-right-top-to-bottom, instead of
   top-to-bottom-left-to-right (default). The layout only differs
   in non-trivial cases, i.e., when `nrow != 1` and `ncol != 1`.
-
-- If `center` is set to `true`, then the padded arrays will be shifted
-  to the center instead of in the top-left corner (default). This
-  parameter is only useful when arrays are of different sizes.
 
 !!! tip
     This function is not type stable and should only be used if
@@ -269,10 +262,17 @@ function mosaicview(A::AbstractArray{T,3};
                     nrow = -1,
                     ncol = -1,
                     rowmajor = false,
-                    kwargs...) where T
+                    kwargs...) where T   # delete `kwargs...` when we delete the `center` depwarn
     nrow == -1 || nrow > 0 || throw(ArgumentError("The parameter \"nrow\" must be greater than 0"))
     ncol == -1 || ncol > 0 || throw(ArgumentError("The parameter \"ncol\" must be greater than 0"))
     npad >= 0 || throw(ArgumentError("The parameter \"npad\" must be greater than or equal to 0"))
+    if !isempty(kwargs)
+        if haskey(kwargs, :center)
+            Base.depwarn("use of `center` in `mosaicview` is deprecated; see `mosaic`", :mosaicview)
+        else
+            Base.depwarn("passing extraneous keyword arguments $(kwargs.data) to `mosaicview` is deprecated", :mosaicview)
+        end
+    end
     ntile = size(A,3)
     ntile_ceil = ntile # ntile need not be integer divideable
     if nrow == -1 && ncol == -1
@@ -332,12 +332,24 @@ function mosaicview(A::AbstractArray{T,N};
                nrow=nrow, ncol=ncol, kwargs...)
 end
 
-@inline mosaicview(As::AbstractArray...; kwargs...) = mosaicview(As; kwargs...)
+"""
+    mosaic(A1, A2...; center=true, kwargs...)
+    mosaic([A1, A2, ...]; center=true, kwargs...)
 
-function mosaicview(As::AbstractVector{<:AbstractArray};
-                    fillvalue=zero(_filltype(As)),
-                    center::Bool=true,
-                    kwargs...)
+Create a mosaic out of input arrays `A1`, `A2`, ....
+
+If `center` is set to `true`, then the padded arrays will be shifted
+to the center; if set to false, they shift to the top-left corner. This
+parameter is only useful when arrays are of different sizes.
+
+All the keyword arguments of [`mosaicview`](@ref) are also supported.
+"""
+@inline mosaic(As::AbstractArray...; kwargs...) = mosaic(As; kwargs...)
+
+function mosaic(As::AbstractVector{<:AbstractArray};
+                fillvalue=zero(_filltype(As)),
+                center::Bool=true,
+                kwargs...)
     length(As) == 0 && throw(ArgumentError("The given vector should not be empty"))
     nd = ndims(As[1])
     all(A->ndims(A)==nd, As) || throw(ArgumentError("All arrays should have the same dimension"))
@@ -347,10 +359,10 @@ function mosaicview(As::AbstractVector{<:AbstractArray};
                fillvalue=fillvalue, kwargs...)
 end
 
-function mosaicview(As::Tuple;
-                    fillvalue=zero(_filltype(As)),
-                    center::Bool=true,
-                    kwargs...)
+function mosaic(As::Tuple;
+                fillvalue=zero(_filltype(As)),
+                center::Bool=true,
+                kwargs...)
     length(As) == 0 && throw(ArgumentError("The given tuple should not be empty"))
     nd = ndims(As[1])
     all(A->ndims(A)==nd, As) || throw(ArgumentError("All arrays should have the same dimension"))
@@ -431,7 +443,7 @@ _gettype(A::AbstractArray{T}) where T = T === Any ? typeof(first(A)) : T
 """
     promote_wrapped_type(S, T)
 
-Similar to `promote_type`, except designed to be extensible to cases where you want to promote through a wrapper type.
+Similar to `promote_type`, except designed to be extensible to cases where you want to promote should occur through a wrapper type.
 
 `promote_wrapped_type` is used by `_filltype` to compute the common element type for handling heterogeneous types when building the mosaic.
 It does not have the order-independence of `promote_type`, and you should extend it directly rather than via a `promote_rule`-like mechanism.
@@ -465,6 +477,15 @@ end
 
 ### deprecations
 
-@deprecate mosaicview(A::AbstractArray, fillvalue; kwargs...) mosaicview(A; fillvalue=fillvalue, kwargs...)
+@deprecate mosaicview(A1::AbstractArray, A2::AbstractArray; kwargs...) mosaic(A1, A2; kwargs...) # prevent A2 from being interpreted as fillvalue
+@deprecate mosaicview(As::AbstractArray...; kwargs...) mosaic(As...; kwargs...)
+@deprecate mosaicview(As::AbstractVector{<:AbstractArray};
+                      fillvalue=zero(_filltype(As)),
+                      center::Bool=true,
+                      kwargs...) mosaic(As; fillvalue=fillvalue, center=center, kwargs...)
+@deprecate mosaicview(As::Tuple;
+                      fillvalue=zero(_filltype(As)),
+                      center::Bool=true,
+                      kwargs...) mosaic(As; fillvalue=fillvalue, center=center, kwargs...)
 
 end # module
