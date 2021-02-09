@@ -8,30 +8,35 @@
 
 When visualizing images, it is not uncommon to provide a 2D view of different image sources.
 For example, comparing multiple images of different sizes, getting a preview of machine
-learning dataset. This package aims to provide an easy-to-use tool for such tasks.
+learning dataset. This package aims to provide easy-to-use tools for such tasks.
 
-### Compare two images
+## Usage
 
-When comparing and showing multiple images, `cat`/`hcat`/`vcat` can be helpful if images
-sizes and colorants are the same. But if not, you'll need `mosaicview` for this purpose.
+### Compare two or more images
+
+When comparing and showing multiple images, `cat`/`hcat`/`vcat/hvcat` can be helpful if the image
+sizes and element types are the same. But if not, you'll need `mosaic` for this purpose.
 
 ```julia
-# ImageCore reexports MosaicViews with some glue codes for images
+# ImageCore reexports MosaicViews with some glue code for images
 julia> using ImageCore, ImageShow, TestImages, ColorVectorSpace
 
 julia> toucan = testimage("toucan") # 150×162 RGBA image
 
 julia> moon = testimage("moon") # 256×256 Gray image
 
-julia> mosaicview(toucan, moon; nrow=1)
+julia> mosaic(toucan, moon; nrow=1)
 ```
 
 ![compare-images](https://user-images.githubusercontent.com/1525481/97542758-4b5ade80-1995-11eb-87cc-5fd2b0ba23fc.png)
 
+Like `cat`, `mosaic` makes a copy of the inputs.
+
 ### Get a preview of dataset
 
-Many datasets in machine learning field are stored as 3D/4D array, `mosaicview` provides
-some convenient keyword arguments to get a nice looking preview of your dataset.
+Many datasets in machine learning field are stored as 3D/4D array, where different images are different slices
+along the 3rd and 4th dimensions.
+`mosaicview` provides a convenient way to visualize a single higher-dimensional array as a 2D grid-of-images.
 
 ```julia
 julia> using MosaicViews, ImageShow, MLDatasets
@@ -47,22 +52,19 @@ julia> mosaicview(A, fillvalue=.5, nrow=2, npad=1, rowmajor=true)
 
 ![dataset-preview](https://user-images.githubusercontent.com/10854026/34172451-5f80173e-e4f2-11e7-9e86-8b3882d53aa7.png)
 
-## Usage
+Unlike `mosaic`, `mosaicview` does not copy the input--it provides an alternative interpretation of the input data.
+Consequently, if you modify pixels of the output of `mosaicview`, those modifications also apply to the parent array `A`.
 
-MosaicViews.jl provides an array decorator type, `MosaicView`,
-that creates a matrix-shaped "view" of any three or four
-dimensional array `A`. The resulting `MosaicView` will display
-the data in `A` such that it emulates using `vcat` for all
-elements in the third dimension of `A`, and `hcat` for all
-elements in the fourth dimension of `A`.
+`mosaicview` is essentially a flexible way of constructing a `MosaicView`; it provides
+additional customization options via keyword arguments.
+If you do not need the flexibility of `mosaicview`, you can directly call the `MosaicView` constructor.
+The remainder of this page illustrates the various options for `mosaic` and `mosaicview` and then covers the low-level `MosaicView` constructor.
 
-If performance isn't a priority, `mosaicview` is a convenience
-helper function to create a `MosaicView`.
+### More on the keyword options
 
-### the `mosaicview` helper
-
-`mosaicview` is sufficient for most visualization use cases. It
-accepts multiple arrays as input:
+`mosaic` and `mosaicview` use almost all the same keyword arguments (all except `center`, which is not relevant for `mosaicview`).
+Let's illustrate some of the effects you can achieve.
+First, in the simplest case:
 
 ```julia
 julia> A1 = fill(1, 3, 1)
@@ -78,7 +80,7 @@ julia> A2 = fill(2, 1, 3)
 # A1 and A2 will be padded to the common size and shifted
 # to the center, this is a common operation to visualize
 # multiple images
-julia> mosaicview(A1, A2)
+julia> mosaic(A1, A2)
 6×3 MosaicView{Int64,4, ...}:
  0  1  0
  0  1  0
@@ -88,13 +90,11 @@ julia> mosaicview(A1, A2)
  0  0  0
 ```
 
-Besides this, `mosaicview` also allows for a couple of convenience
-keywords. The following example provides a preview, for more detailed
-explanation, please refer to the documentation `?mosaicview`.
+If desired, you can disable the automatic centering:
 
 ```julia
 # disable center shift
-julia> mosaicview(A1, A2; center=false)
+julia> mosaic(A1, A2; center=false)
 6×3 MosaicView{Int64,4, ...}:
  1  0  0
  1  0  0
@@ -102,7 +102,12 @@ julia> mosaicview(A1, A2; center=false)
  2  2  2
  0  0  0
  0  0  0
+```
 
+You can also control the placement of tiles. Here this is illustrated for `mosaicview`, but
+the same options apply for `mosaic`:
+
+```julia
 julia> A = [k for i in 1:2, j in 1:3, k in 1:5]
 2×3×5 Array{Int64,3}:
 [:, :, 1] =
@@ -172,21 +177,14 @@ julia> mosaicview(A, fillvalue=-1, nrow=2, npad=1, rowmajor=true)
 
 ### The `MosaicView` Type
 
-If performance is important it is recommended to use `MosaicView`
-directly, as `mosaicview` is not type stable.
+The `MosaicView` constructor is simple and straightforward;
+if you need more layout options, consider calling it indirectly
+through `mosaicview`.
 
-Note that the constructor doesn't accept other parameters than
-the array `A` itself, it doesn't accept multiple inputs neither.
-Consequently the layout of the mosaic is encoded in the third
+The layout of the mosaic is encoded in the third
 (and optionally fourth) dimension. Creating a `MosaicView` this
-way is type stable, non-copying, and should in general give a
+way is type stable, non-copying, and should in general give
 decent performance when accessed with `getindex`.
-
-Another way to think about this is that `MosaicView` creates a
-mosaic of all the individual matrices enumerated in the third
-(and optionally fourth) dimension of the given 3D or 4D array
-`A`. This can be especially useful for creating a single
-composite image from a set of equally sized images.
 
 Let us look at a couple examples to see the type in action. If
 `size(A)` is `(2,3,4)`, then the resulting `MosaicView` will have
@@ -254,6 +252,15 @@ julia> MosaicView(A)
  2  2  2  5  5  5
  2  2  2  5  5  5
 ```
+
+### Customizing promotion
+
+When the inputs are heterogeneous, `mosaic` attempts to convert the elements of all input arrays to a common type;
+if this promotion step throws an error, consider extending `MosaicViews.promote_wrapped_type` for your types.
+
+`ImageCore` provides such extensions for colors defined in [ColorTypes](https://github.com/JuliaGraphics/ColorTypes.jl).
+You will likely want to load that package if you're using MosaicViews with `Colorant` arrays.
+(`ImageCore` gets loaded by nearly all the packages in the JuliaImages suite, so you may find that it is already loaded.)
 
 [travis-img]: https://travis-ci.org/JuliaArrays/MosaicViews.jl.svg?branch=master
 [travis-url]: https://travis-ci.org/JuliaArrays/MosaicViews.jl

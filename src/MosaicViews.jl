@@ -7,7 +7,8 @@ using MappedArrays: of_eltype
 export
 
     MosaicView,
-    mosaicview
+    mosaicview,
+    mosaic
 
 """
     MosaicView(A::AbstractArray)
@@ -111,19 +112,15 @@ end
 """
     mosaicview(A::AbstractArray;
                [fillvalue=<zero unit>], [npad=0],
-               [nrow], [ncol], [rowmajor=false],
-               [center=true]) -> MosaicView
+               [nrow], [ncol], [rowmajor=false]) -> MosaicView
     mosaicview(As::AbstractArray...; kwargs...)
     mosaicview(As::Union{Tuple, AbstractVector}; kwargs...)
 
-Create a two dimensional "view" from array `A` or a list of arrays `As`.
+Create a two dimensional "view" from array `A`.
 
 The resulting [`MosaicView`](@ref) will display all the matrix
 slices of the first two dimensions of `A` arranged as a single
 large mosaic (in the form of a matrix).
-
-If multiple arrays in passed, they'll will be center-padded to a common
-size, and then be concatenated to create a higher dimensional array.
 
 # Arguments
 
@@ -152,10 +149,6 @@ image mosaic from a set of input images.
   arranged left-to-right-top-to-bottom, instead of
   top-to-bottom-left-to-right (default). The layout only differs
   in non-trivial cases, i.e., when `nrow != 1` and `ncol != 1`.
-
-- If `center` is set to `true`, then the padded arrays will be shifted
-  to the center instead of in the top-left corner (default). This
-  parameter is only useful when arrays are of different sizes.
 
 !!! tip
     This function is not type stable and should only be used if
@@ -269,10 +262,17 @@ function mosaicview(A::AbstractArray{T,3};
                     nrow = -1,
                     ncol = -1,
                     rowmajor = false,
-                    kwargs...) where T
+                    kwargs...) where T   # delete `kwargs...` when we delete the `center` depwarn
     nrow == -1 || nrow > 0 || throw(ArgumentError("The parameter \"nrow\" must be greater than 0"))
     ncol == -1 || ncol > 0 || throw(ArgumentError("The parameter \"ncol\" must be greater than 0"))
     npad >= 0 || throw(ArgumentError("The parameter \"npad\" must be greater than or equal to 0"))
+    if !isempty(kwargs)
+        if haskey(kwargs, :center)
+            Base.depwarn("use of `center` in `mosaicview` is deprecated; see `mosaic`", :mosaicview)
+        else
+            Base.depwarn("passing extraneous keyword arguments $(kwargs.data) to `mosaicview` is deprecated", :mosaicview)
+        end
+    end
     ntile = size(A,3)
     ntile_ceil = ntile # ntile need not be integer divideable
     if nrow == -1 && ncol == -1
@@ -310,7 +310,7 @@ function mosaicview(A::AbstractArray{T,3};
         # before top-to-bottom. (note the swap of "ncol" and "nrow")
         res_dims = (size(A_pad,1), size(A_pad,2), ncol, nrow)
         A_tp = reshape(A_pad, res_dims)
-        PermutedDimsArray(A_tp, (1, 2, 4, 3))
+        PermutedDimsArray{eltype(A_tp), 4, (1, 2, 4, 3), (1, 2, 4, 3), typeof(A_tp)}(A_tp)
     end
     # decrease size of the resulting MosaicView by npad to not have
     # a border on the right side and bottom side of the final mosaic.
@@ -332,31 +332,70 @@ function mosaicview(A::AbstractArray{T,N};
                nrow=nrow, ncol=ncol, kwargs...)
 end
 
-mosaicview(As::AbstractArray...; kwargs...) = mosaicview(As; kwargs...)
+"""
+    mosaic(A1, A2...; center=true, kwargs...)
+    mosaic([A1, A2, ...]; center=true, kwargs...)
 
-function mosaicview(As::AbstractVector{T};
-                    fillvalue=zero(_filltype(As)),
-                    center=true,
-                    kwargs...) where {T <: AbstractArray}
+Create a mosaic out of input arrays `A1`, `A2`, .... `mosaic` is essentially
+a more flexible version of `cat` or `hvcat`; like them it makes a copy of
+the inputs rather than returning a "view."
+
+If `center` is set to `true`, then the padded arrays will be shifted
+to the center; if set to false, they shift to the top-left corner. This
+parameter is only useful when arrays are of different sizes.
+
+All the keyword arguments of [`mosaicview`](@ref) are also supported.
+"""
+@inline mosaic(As::AbstractArray...; kwargs...) = mosaic(As; kwargs...)
+
+function mosaic(As::AbstractVector{<:AbstractArray};
+                fillvalue=zero(_filltype(As)),
+                center::Bool=true,
+                kwargs...)
     length(As) == 0 && throw(ArgumentError("The given vector should not be empty"))
-    length(unique(ndims.(As))) != 1 && throw(ArgumentError("All arrays should have the same dimension"))
-    N = ndims(first(As))
-    mosaicview(_padded_cat(As; center=center, fillvalue=fillvalue, dims=max(3, N+1));
+    nd = ndims(As[1])
+    all(A->ndims(A)==nd, As) || throw(ArgumentError("All arrays should have the same dimension"))
+    T = _filltype(As)
+    fillvalue = convert(T, fillvalue)
+    mosaicview(_padded_cat(As; center=center, fillvalue=fillvalue, dims=valdim(first(As)));
                fillvalue=fillvalue, kwargs...)
 end
 
-function mosaicview(As::Tuple;
-                    fillvalue=zero(_filltype(As)),
-                    center=true,
-                    kwargs...)
+function mosaic(As::Tuple;
+                fillvalue=zero(_filltype(As)),
+                center::Bool=true,
+                kwargs...)
     length(As) == 0 && throw(ArgumentError("The given tuple should not be empty"))
-    length(unique(ndims.(As))) != 1 && throw(ArgumentError("All arrays should have the same dimension"))
-    N = ndims(first(As))
-    mosaicview(_padded_cat(As; center=center, fillvalue=fillvalue, dims=max(3, N+1));
-               fillvalue=fillvalue, kwargs...)
+    nd = ndims(As[1])
+    all(A->ndims(A)==nd, As) || throw(ArgumentError("All arrays should have the same dimension"))
+    T = _filltype(As)
+    fillvalue = convert(T, fillvalue)
+    vd = valdim(first(As))
+    if isconcretetype(eltype(As))
+        mosaicview(_padded_cat(As; center=center, fillvalue=fillvalue, dims=vd);
+                fillvalue=fillvalue, kwargs...)
+    else
+        # Reduce latency by despecializing calls with heterogeneous array types
+        Mtyp = arraytype(T,vd)
+        mosaicview(_padded_cat(Base.inferencebarrier(As); center=center, fillvalue=Base.inferencebarrier(fillvalue), dims=Base.inferencebarrier(vd))::Mtyp;
+                fillvalue=fillvalue, kwargs...)
+    end
 end
 
-function _padded_cat(imgs; center, fillvalue, dims)
+valdim(A::AbstractArray{T,0}) where T     = Val(3)
+valdim(A::AbstractVector)                 = Val(3)
+valdim(A::AbstractMatrix)                 = Val(3)
+valdim(A::AbstractArray{T,N}) where {T,N} = Val(N+1)
+
+arraytype(::Type{T}, ::Val{N}) where {T,N} = Array{T,N}
+
+function _padded_cat(imgs; center::Bool, fillvalue, dims)
+    @nospecialize # because this is frequently called with heterogeneous inputs, we @nospecialize it
+    pv(@nospecialize(imgs::AbstractVector{<:AbstractArray})) = PaddedViews.paddedviews_itr(fillvalue, imgs)
+    pv(@nospecialize(imgs)) = paddedviews(fillvalue, imgs...)
+    sym_pv(@nospecialize(imgs::AbstractVector{<:AbstractArray})) = PaddedViews.sym_paddedviews_itr(fillvalue, imgs)
+    sym_pv(@nospecialize(imgs)) = sym_paddedviews(fillvalue, imgs...)
+
     # reduce(cat, imgs) would indeed make the whole pipeline more eagerly
     # and thus allocates more memory
     # TODO: inefficient when there're too many images, e.g., 512
@@ -366,42 +405,89 @@ function _padded_cat(imgs; center, fillvalue, dims)
         @warn msg
     end
     T = _filltype(imgs)
-    has_offsets = any(Base.has_offset_axes.(imgs))
-    if !has_offsets && length(unique(map(axes, imgs))) == 1
-        return of_eltype(T, cat(imgs...; dims=dims))
+    has_offsets = any(Base.has_offset_axes, imgs)
+    if !has_offsets && has_common_axes(imgs)
+        return Base._cat_t(dims, T, imgs...)
     else
         if !has_offsets && !center
             # in this case the index of PaddedView starts from 1
             # hence we can directly pass them into `cat`
-            return of_eltype(T, cat(paddedviews(fillvalue, imgs...)...; dims=dims))
+            return Base._cat_t(dims, T, pv(imgs)...)
         else
-            # TODO: it's unidentified but this version allocates more memory
-            #       and become slower (~1.5X) than a direct `cat`
-            pad_fn = center ? sym_paddedviews : paddedviews
-            return of_eltype(T, reduce(pad_fn(fillvalue, imgs...)) do x, y
-                x = OffsetArray(x, 1 .- first.(axes(x)))
-                y = OffsetArray(y, 1 .- first.(axes(y)))
-                cat(x, y; dims=dims)
-            end)
+            if center
+                return Base._cat_t(dims, T, map(OffsetArrays.no_offset_view, sym_pv(imgs))...)
+            end
+            return Base._cat_t(dims, T, map(OffsetArrays.no_offset_view, pv(imgs))...)
         end
     end
 end
 
-function _filltype(As)
-    Ts = (typeof.(first.(As))..., eltype.(typeof(As).types)...)
-    C = foldl(PaddedViews.filltype, filter(x-> x!== Any, Ts))
-    T = promote_type(eltype.(Ts)...) # eltype(eltype(RGB{Float32})) == Float32
-    isconcretetype(T) ? PaddedViews.filltype(C, T) : C
+has_common_axes(@nospecialize(imgs)) = isempty(imgs) || all(isequal(axes(first(imgs))) ∘ axes, imgs)
+
+
+# This uses Union{} as a sentinel eltype (all other types "beat" it),
+# and Bool as a near-neutral fill type.
+_filltype(As) = PaddedViews.filltype(Bool, _filltypeT(Union{}, As...))
+
+@inline _filltypeT(::Type{T}, A, tail...) where T = _filltypeT(promote_wrapped_type(T, _gettype(A)), tail...)
+_filltypeT(::Type{T}) where T = T
+
+# When the inputs are homogenous we can circumvent varargs despecialization
+# This also handles the case of empty `As` but concrete `T`.
+function _filltype(As::AbstractVector{A}) where A<:AbstractArray{T} where T
+    # (!@isdefined(T) || T === Any) && return invoke(_filltype, Tuple{Any}, As)
+    T === Any && return invoke(_filltype, Tuple{Any}, As)
+    return PaddedViews.filltype(Bool, T)
 end
+
+_gettype(A::AbstractArray{T}) where T = T === Any ? typeof(first(A)) : T
+
+"""
+    promote_wrapped_type(S, T)
+
+Similar to `promote_type`, except designed to be extensible to cases where you want to promote should occur through a wrapper type.
+
+`promote_wrapped_type` is used by `_filltype` to compute the common element type for handling heterogeneous types when building the mosaic.
+It does not have the order-independence of `promote_type`, and you should extend it directly rather than via a `promote_rule`-like mechanism.
+
+# Example
+
+Suppose you have
+```
+struct MyWrapper{T}
+    x::T
+end
+```
+and you don't want to define `promote_type(MyWrapper{Int},Float32)` generally as anything other than `Any`,
+but for the purpose of building mosaics a `MyWrapper{Float32}` would be a valid common type.
+Then you could define
+
+```
+MosaicViews.promote_wrapped_type(::Type{MyWrapper{S}}, ::Type{MyWrapper{T}}) where {S,T} = MyWrapper{MosaicViews.promote_wrapped_type(S,T)}
+MosaicViews.promote_wrapped_type(::Type{MyWrapper{S}}, ::Type{T}) where {S,T} = MyWrapper{MosaicViews.promote_wrapped_type(S,T)}
+MosaicViews.promote_wrapped_type(::Type{S}, ::Type{MyWrapper{T}}) where {S,T} = MosaicViews.promote_wrapped_type(MyWrapper{T}, S)
+```
+"""
+promote_wrapped_type(::Type{S}, ::Type{T}) where {S, T} = promote_type(S, T)
 
 ### compat
 if VERSION < v"1.2"
     require_one_based_indexing(A...) = !Base.has_offset_axes(A...) || throw(ArgumentError("offset arrays are not supported but got an array with index other than 1"))
 else
-    require_one_based_indexing = Base.require_one_based_indexing
+    const require_one_based_indexing = Base.require_one_based_indexing
 end
+
 ### deprecations
 
-@deprecate mosaicview(A::AbstractArray, fillvalue; kwargs...) mosaicview(A; fillvalue=fillvalue, kwargs...)
+@deprecate mosaicview(A1::AbstractArray, A2::AbstractArray; kwargs...) mosaic(A1, A2; kwargs...) # prevent A2 from being interpreted as fillvalue
+@deprecate mosaicview(As::AbstractArray...; kwargs...) mosaic(As...; kwargs...)
+@deprecate mosaicview(As::AbstractVector{<:AbstractArray};
+                      fillvalue=zero(_filltype(As)),
+                      center::Bool=true,
+                      kwargs...) mosaic(As; fillvalue=fillvalue, center=center, kwargs...)
+@deprecate mosaicview(As::Tuple;
+                      fillvalue=zero(_filltype(As)),
+                      center::Bool=true,
+                      kwargs...) mosaic(As; fillvalue=fillvalue, center=center, kwargs...)
 
 end # module
