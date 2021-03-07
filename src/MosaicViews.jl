@@ -469,6 +469,8 @@ MosaicViews.promote_wrapped_type(::Type{S}, ::Type{MyWrapper{T}}) where {S,T} = 
 ```
 """
 promote_wrapped_type(::Type{S}, ::Type{T}) where {S, T} = promote_type(S, T)
+promote_wrapped_type(::Type{Union{}}, ::Type{T}) where T = T # easier to resolve ambiguity when extending the method
+promote_wrapped_type(::Type{T}, ::Type{T}) where T = T
 
 ### compat
 if VERSION < v"1.2"
