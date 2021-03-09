@@ -3,6 +3,8 @@ using Test
 using ImageCore, ColorVectorSpace
 using OffsetArrays
 
+using MosaicViews: StackView
+
 # Because of the difference in axes types between paddedviews (Base.OneTo) and
 # sym_paddedviews (UnitRange), the return type of `mosaicview` isn't inferrable to a
 # concrete type. But it is inferrable to a Union{A,B} where both A and B are concrete.
@@ -21,6 +23,39 @@ end
 function checkinferred_mosaic(As::AbstractVector{<:AbstractArray}; kwargs...)
     V = mosaic(As; kwargs...)
     return _checkinferred_mosaic(V, (As...,); kwargs...)
+end
+
+@testset "StackView" begin
+    A = reshape(collect(1:12), 3, 4)
+    B = reshape(collect(13:24), 3, 4)
+
+    sv = StackView([A, B])
+    @test size(sv) == (3, 4, 2)
+    @test collect(sv) == cat(A, B; dims=3)
+
+    sv = StackView([A, B]; dims=3)
+    @test size(sv) == (3, 4, 2)
+    @test collect(sv) == cat(A, B; dims=3)
+
+    sv = StackView([A, B]; dims=1)
+    @test size(sv) == (2, 3, 4)
+    @test sv[1, :, :] == A
+    @test sv[2, :, :] == B
+
+    sv = StackView([A, B]; dims=2)
+    @test size(sv) == (3, 2, 4)
+    @test sv[:, 1, :] == A
+    @test sv[:, 2, :] == B
+
+    sv = StackView([A, B]; dims=3)
+    @test size(sv) == (3, 4, 2)
+    @test sv[:, :, 1] == A
+    @test sv[:, :, 2] == B
+
+    @test_throws ArgumentError StackView([A, B[:]])
+    
+    @test_throws ArgumentError StackView([A, B]; dims=0)
+    @test_throws ArgumentError StackView([A, B]; dims=4)
 end
 
 @testset "MosaicView" begin
