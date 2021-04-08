@@ -9,7 +9,7 @@ OffsetArrays = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"
 PaddedViews = "5432bcbf-9aad-5242-b902-cca2824c8663"
 
 [compat]
-MappedArrays = "0.2, 0.3"
+MappedArrays = "0.2, 0.3, 0.4"
 OffsetArrays = "0.10, 0.11, 1"
 PaddedViews = "0.5.8"
 julia = "1"
