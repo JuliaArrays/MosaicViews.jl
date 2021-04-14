@@ -3,14 +3,13 @@ module MosaicViews
 using PaddedViews
 using OffsetArrays
 using MappedArrays: of_eltype
+using StackViews
 
 export
 
     MosaicView,
     mosaicview,
     mosaic
-
-include("stackviews.jl")
 
 """
     MosaicView(A::AbstractArray)
@@ -99,7 +98,8 @@ Base.size(mva::MosaicView) = mva.dims
     res
 end
 
-@inline function Base.getindex(mva::MosaicView{T,4,A}, i::Int, j::Int) where {T,A}
+# FIXME: we need the annotation T because mosaicview + StackView is currently not type stable
+@inline function Base.getindex(mva::MosaicView{T,4,A}, i::Int, j::Int)::T where {T,A}
     @boundscheck checkbounds(mva, i, j)
     pdims = mva.pdims
     parent = mva.parent
@@ -383,9 +383,12 @@ function mosaic(As::Tuple;
     end
 end
 
-valdim(A::AbstractArray) = max(3, ndims(A)+1)
+valdim(A::AbstractArray{T,0}) where T     = Val(3)
+valdim(A::AbstractVector)                 = Val(3)
+valdim(A::AbstractMatrix)                 = Val(3)
+valdim(A::AbstractArray{T,N}) where {T,N} = Val(N+1)
 
-function _padded_cat(imgs; center::Bool, fillvalue, dims)
+function _padded_cat(imgs, center::Bool, fillvalue, dims)
     @nospecialize # because this is frequently called with heterogeneous inputs, we @nospecialize it
     pv(@nospecialize(imgs::AbstractVector{<:AbstractArray})) = PaddedViews.paddedviews_itr(fillvalue, imgs)
     pv(@nospecialize(imgs)) = paddedviews(fillvalue, imgs...)
@@ -393,8 +396,10 @@ function _padded_cat(imgs; center::Bool, fillvalue, dims)
     sym_pv(@nospecialize(imgs)) = sym_paddedviews(fillvalue, imgs...)
 
     pv_fn = center ? sym_pv : pv
-    return StackView(map(OffsetArrays.no_offset_view, pv_fn(imgs)); dims=dims)
+    return StackView{_filltype(imgs)}(pv_fn(imgs), dims)
 end
+# compat: some packages uses this method
+_padded_cat(imgs; center::Bool, fillvalue, dims) = _padded_cat(imgs, center, fillvalue, dims)
 
 has_common_axes(@nospecialize(imgs)) = isempty(imgs) || all(isequal(axes(first(imgs))) ∘ axes, imgs)
 
