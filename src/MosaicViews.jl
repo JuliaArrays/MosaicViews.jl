@@ -3,6 +3,7 @@ module MosaicViews
 using PaddedViews
 using OffsetArrays
 using MappedArrays: of_eltype
+using StackViews
 
 export
 
@@ -97,7 +98,8 @@ Base.size(mva::MosaicView) = mva.dims
     res
 end
 
-@inline function Base.getindex(mva::MosaicView{T,4,A}, i::Int, j::Int) where {T,A}
+# FIXME: we need the annotation T because mosaicview + StackView is currently not type stable
+@inline function Base.getindex(mva::MosaicView{T,4,A}, i::Int, j::Int)::T where {T,A}
     @boundscheck checkbounds(mva, i, j)
     pdims = mva.pdims
     parent = mva.parent
@@ -376,8 +378,7 @@ function mosaic(As::Tuple;
                 fillvalue=fillvalue, kwargs...)
     else
         # Reduce latency by despecializing calls with heterogeneous array types
-        Mtyp = arraytype(T,vd)
-        mosaicview(_padded_cat(Base.inferencebarrier(As); center=center, fillvalue=Base.inferencebarrier(fillvalue), dims=Base.inferencebarrier(vd))::Mtyp;
+        mosaicview(_padded_cat(Base.inferencebarrier(As); center=center, fillvalue=Base.inferencebarrier(fillvalue), dims=Base.inferencebarrier(vd));
                 fillvalue=fillvalue, kwargs...)
     end
 end
@@ -387,40 +388,18 @@ valdim(A::AbstractVector)                 = Val(3)
 valdim(A::AbstractMatrix)                 = Val(3)
 valdim(A::AbstractArray{T,N}) where {T,N} = Val(N+1)
 
-arraytype(::Type{T}, ::Val{N}) where {T,N} = Array{T,N}
-
-function _padded_cat(imgs; center::Bool, fillvalue, dims)
+function _padded_cat(imgs, center::Bool, fillvalue, dims)
     @nospecialize # because this is frequently called with heterogeneous inputs, we @nospecialize it
     pv(@nospecialize(imgs::AbstractVector{<:AbstractArray})) = PaddedViews.paddedviews_itr(fillvalue, imgs)
     pv(@nospecialize(imgs)) = paddedviews(fillvalue, imgs...)
     sym_pv(@nospecialize(imgs::AbstractVector{<:AbstractArray})) = PaddedViews.sym_paddedviews_itr(fillvalue, imgs)
     sym_pv(@nospecialize(imgs)) = sym_paddedviews(fillvalue, imgs...)
 
-    # reduce(cat, imgs) would indeed make the whole pipeline more eagerly
-    # and thus allocates more memory
-    # TODO: inefficient when there're too many images, e.g., 512
-    if length(imgs) > 300
-        msg = "It's quite slow to visualize a tuple/list of $(length(imgs)) images"
-        msg *= "\nyou might want to manually `cat` them into one large array first."
-        @warn msg
-    end
-    T = _filltype(imgs)
-    has_offsets = any(Base.has_offset_axes, imgs)
-    if !has_offsets && has_common_axes(imgs)
-        return Base._cat_t(dims, T, imgs...)
-    else
-        if !has_offsets && !center
-            # in this case the index of PaddedView starts from 1
-            # hence we can directly pass them into `cat`
-            return Base._cat_t(dims, T, pv(imgs)...)
-        else
-            if center
-                return Base._cat_t(dims, T, map(OffsetArrays.no_offset_view, sym_pv(imgs))...)
-            end
-            return Base._cat_t(dims, T, map(OffsetArrays.no_offset_view, pv(imgs))...)
-        end
-    end
+    pv_fn = center ? sym_pv : pv
+    return StackView{_filltype(imgs)}(pv_fn(imgs), dims)
 end
+# compat: some packages uses this method
+_padded_cat(imgs; center::Bool, fillvalue, dims) = _padded_cat(imgs, center, fillvalue, dims)
 
 has_common_axes(@nospecialize(imgs)) = isempty(imgs) || all(isequal(axes(first(imgs))) ∘ axes, imgs)
 
