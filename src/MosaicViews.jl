@@ -373,7 +373,8 @@ function mosaic(As::Tuple;
     T = _filltype(As)
     fillvalue = convert(T, fillvalue)
     vd = valdim(first(As))
-    if isconcretetype(eltype(As))
+    if isconcretetype(eltype(As)) || VERSION < v"1.2.0"
+        # Base.inferencebarrier requires Julia at least v1.2.0
         mosaicview(_padded_cat(As; center=center, fillvalue=fillvalue, dims=vd);
                 fillvalue=fillvalue, kwargs...)
     else
