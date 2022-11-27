@@ -272,7 +272,7 @@ function mosaicview(A::AbstractArray{T,3};
         if haskey(kwargs, :center)
             Base.depwarn("use of `center` in `mosaicview` is deprecated; see `mosaic`", :mosaicview)
         else
-            Base.depwarn("passing extraneous keyword arguments $(kwargs.data) to `mosaicview` is deprecated", :mosaicview)
+            Base.depwarn("passing extraneous keyword arguments $(values(kwargs)) to `mosaicview` is deprecated", :mosaicview)
         end
     end
     ntile = size(A,3)
