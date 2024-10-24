@@ -1,7 +1,6 @@
 # MosaicViews
 
-[![Travis-CI][travis-img]][travis-url]
-[![CodeCov][codecov-img]][codecov-url]
+[![codecov](https://codecov.io/github/JuliaArrays/MosaicViews.jl/graph/badge.svg?token=uHKmfvAz3B)](https://codecov.io/github/JuliaArrays/MosaicViews.jl)
 [![PkgEval][pkgeval-img]][pkgeval-url]
 
 ## Motivations
