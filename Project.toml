@@ -1,7 +1,7 @@
 name = "MosaicViews"
 uuid = "e94cdb99-869f-56ef-bcf0-1ae2bcbe0389"
 authors = ["Christof Stocker <stocker.christof@gmail.com>"]
-version = "0.3.4"
+version = "0.4.0"
 
 [deps]
 MappedArrays = "dbb5928d-eab1-5f90-85c2-b9b0edb7c900"
@@ -14,7 +14,7 @@ MappedArrays = "0.2, 0.3, 0.4"
 OffsetArrays = "0.10, 0.11, 1"
 PaddedViews = "0.5.8"
 StackViews = "0.1.1"
-julia = "1"
+julia = "1.6"
 
 [extras]
 ColorVectorSpace = "c3611d14-8923-5661-9e6a-0046d554d3a4"
