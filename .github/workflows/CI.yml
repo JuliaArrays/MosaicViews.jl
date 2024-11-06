@@ -13,12 +13,10 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1.0'
           - '1'
-          - 'nightly'
         os:
           - ubuntu-latest
-          - macOS-latest
+          - macOS-13
           - windows-latest
         arch:
           - x64
@@ -56,3 +54,4 @@ jobs:
       - uses: codecov/codecov-action@v4
         with:
           file: lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}
